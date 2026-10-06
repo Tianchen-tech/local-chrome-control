@@ -1,0 +1,12 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const manifest = JSON.parse(await fs.readFile(path.join(root, 'extension/manifest.json'), 'utf8'));
+await fs.mkdir(path.join(root, 'dist'), { recursive: true });
+const output = path.join(root, 'dist', `local-chrome-control-${manifest.version}-chrome-store.zip`);
+await fs.rm(output, { force: true });
+const run = spawnSync('zip', ['-qr', output, '.', '-x', '*.DS_Store'], { cwd: path.join(root, 'extension'), stdio: 'inherit' });
+if (run.status !== 0) throw new Error('zip failed');
+console.log(output);

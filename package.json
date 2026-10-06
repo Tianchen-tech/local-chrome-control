@@ -1,0 +1,14 @@
+{
+  "name": "local-chrome-control",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "install:preview": "node scripts/install.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "package:store": "node scripts/package-store.mjs"
+  }
+}

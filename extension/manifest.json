@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "本地 Chrome 控制 · Local Chrome Control",
+  "short_name": "Local Chrome",
+  "version": "0.1.1",
+  "minimum_chrome_version": "120",
+  "description": "macOS 本地 Chrome 控制：需安装配套本机程序并接入 Codex，仅操作你手动授权的标签页。",
+  "permissions": [
+    "activeTab",
+    "debugger",
+    "nativeMessaging",
+    "storage",
+    "alarms"
+  ],
+  "background": {
+    "service_worker": "service-worker.mjs",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "本地 Chrome 控制",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none';"
+  }
+}

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>本地 Chrome 控制</title><link rel="stylesheet" href="popup.css"><script type="module" src="popup.mjs"></script></head>
+<body>
+<header><img src="icons/icon48.png" width="34" height="34" alt=""><div><h1>本地 Chrome 控制</h1><p>Local Chrome Control</p></div><span id="version" class="version">…</span></header>
+<main>
+  <section class="connection"><div class="status-line"><span id="dot" class="dot"></span><strong id="status">检查连接…</strong><button id="reconnect" class="link">重新连接</button></div><p id="connection-note">控制消息通过本机连接传递。</p><p id="session-id" class="session-id" hidden></p></section>
+  <section class="tab-card"><div class="eyebrow">当前标签页</div><h2 id="tab-title">正在读取…</h2><p id="tab-origin" class="origin"></p><div id="permission" class="permission">尚未授权</div>
+    <button id="grant" class="primary" disabled>允许控制此标签页</button><button id="stop" class="danger" hidden>停止控制此标签页</button><p class="hint">切换到其他网站会自动收回授权。你可以随时停止。</p></section>
+  <section class="activity"><div class="section-title"><h2>最近操作</h2><span id="count"></span></div><ul id="events"><li class="empty">尚无控制操作</li></ul></section>
+  <p id="error" class="error" role="alert" hidden></p>
+</main>
+<footer><span>只控制你授权的标签页</span><button id="stop-all" class="link" disabled>全部停止</button></footer>
+</body></html>
