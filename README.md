@@ -6,11 +6,11 @@
 
 0.2.3 修复了滚动页面中的跨进程 iframe 命中检查、完整鼠标事件顺序、粘性导航反复滚动和跨站标题恢复，见 [修复记录](docs/FIXES-0.2.3.md)。
 
-Windows 本机连接、当前用户安装与撤销流程已实现，Windows 实机验收待完成。见 [Windows 安装与验收](docs/WINDOWS.md)。
+Windows 本机连接与隔离 Chrome 回归已通过 Mac/Windows × Node 22/24 的四组 CI。个人 Chrome 的扩展加载与授权连接仍需本机验收。下载 [0.3.0 预览 ZIP](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.0-windows-preview.1)，按 [Windows 安装与验收](docs/WINDOWS.md)试用；[CI 记录](docs/WINDOWS-CI.md)列出验证边界。
 
 # 本地 Chrome 控制
 
-Windows 测试预览版 0.3.0，用于 macOS，以及待实机验收的 Windows 10/11，最低 Chrome 125。读取页面、点击、填表、选择下拉选项和截图，通过独立的本机连接程序接入 Codex。
+Windows 测试预览版 0.3.0，面向 macOS 与 Windows 10/11，最低 Chrome 125。Windows 自动验证环境为 Windows Server 2025；Windows 10/11 个人配置验收待完成。读取页面、点击、填表、选择下拉选项和截图，通过独立的本机连接程序接入 Codex。
 
 历史版本 0.1.1 的 74 项开发测试通过，并完成部分真实 Chrome 基础操作验收，这些历史结果可参照 main 分支的 0.1.1 发布准备。这些历史结果不等于新控制模式和所有复杂网站已验收。当前版本的实测状态见本分支 GitHub Actions 与 docs/WINDOWS.md。
 
