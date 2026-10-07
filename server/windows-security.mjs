@@ -9,7 +9,8 @@ const run = (executable, args, options, input) => new Promise((resolve, reject) 
 // Values travel as base64 JSON, never as interpolated PowerShell source or cmd text.
 export async function powershellJson(source, value, execute = run) {
   const data = Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
-  const script = "$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); " +
+  const script = "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); " +
+    "Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop; " +
     "$data=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd())) | ConvertFrom-Json); " + source;
   const command = Buffer.from(script, 'utf16le').toString('base64');
   const executable = path.win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');

@@ -21,7 +21,16 @@ const child = spawn(executable, [
   '--remote-debugging-address=127.0.0.1', '--user-data-dir=' + profile, '--window-size=1470,900', 'about:blank'
 ], { stdio: 'ignore' });
 const trace = [], results = [], callbacks = new Map(), listeners = [];
-let socket, next = 0, rootSession, targetId, failed = false, pointerServer;
+let socket, next = 0, rootSession, targetId, failed = false, pointerServer, adapter;
+const observedTargets = [];
+function watchFixturePointer() {
+  globalThis.__fixturePointerLog = [];
+  for (const type of ['mousemove', 'mousedown', 'mouseup', 'click']) document.addEventListener(type, e => {
+    globalThis.__fixturePointerLog.push({ type, trusted: e.isTrusted, x: e.clientX, y: e.clientY,
+      target: e.target.tagName, label: e.target.getAttribute('aria-label') || e.target.textContent?.slice(0, 30) });
+  }, true);
+}
+function fixturePointerLog() { return { events: globalThis.__fixturePointerLog || [], width: innerWidth, height: innerHeight, dpr: devicePixelRatio, scrollY }; }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function send(method, params = {}, sessionId) {
   const id = ++next;
@@ -61,6 +70,7 @@ try {
       for (const listener of listeners) listener(source, message.method, message.params || {});
     }
   });
+  results.push({ case: 'browser engine', version: await send('Browser.getVersion') });
   ({ targetId } = await send('Target.createTarget', { url: 'http://127.0.0.1:19320/?mode=extended' }));
   ({ sessionId: rootSession } = await send('Target.attachToTarget', { targetId, flatten: true }));
   const api = {
@@ -68,7 +78,8 @@ try {
     debugger: { onEvent: { addListener(fn) { listeners.push(fn); } }, async attach() {}, async detach() {},
       async sendCommand(target, method, params) { return send(method, params, target.sessionId || rootSession); } }
   };
-  const adapter = new BrowserAdapter(api), origin = 'http://127.0.0.1:19320', policy = createPolicy(origin, { mode: 'extended' });
+  adapter = new BrowserAdapter(api);
+  const origin = 'http://127.0.0.1:19320', policy = createPolicy(origin, { mode: 'extended' });
   if (process.argv.includes('--legacy-point-checks')) {
     const evaluate = adapter.evaluate.bind(adapter);
     adapter.evaluate = (id, fn, args, deadline) => evaluate(id, fn, args[3] === 'measure-point' ? [...args.slice(0, 3), 'point', ...args.slice(4)] : args, deadline);
@@ -102,6 +113,12 @@ try {
   await action('page_click', '框架计数', undefined, same);
   const cross = shot.elements.find(e => e.label === 'Cross frame input').frame;
   await action('page_fill', 'Cross frame input', 'Cross input', cross);
+  const crossTarget = shot.elements.find(e => e.label === '框架计数' && e.frame === cross);
+  const crossRoute = adapter.frames.route({ tab_id: 7, snapshot_id: shot.snapshot_id, ref: crossTarget.ref }, policy, origin);
+  for (const target of [7, crossRoute.target]) {
+    await adapter.evaluate(target, watchFixturePointer, [], Date.now() + 8000);
+    observedTargets.push(target);
+  }
   await action('page_click', '框架计数', undefined, cross);
   assert.match(shot.text, /跨源框架[\s\S]*框架计数1/);
   await fs.writeFile(path.join(output, 'snapshot.json'), JSON.stringify(shot, null, 2));
@@ -130,7 +147,17 @@ try {
   assert.ok(opened.text.includes('Menu opened with trusted complete pointer events')); assert.ok(opened.text.includes('enter:true')); assert.ok(opened.text.includes('down:1,up:0'));
   const newMetadata = await adapter.tab(7); assert.equal(newMetadata.title, 'Strict pointer regression fixture');
   results.push({ case: 'trusted hover/down/up opens strict menu; metadata follows navigation', passed: true, text: opened.text });
-} catch (error) { failed = true; results.push({ case: 'probe stopped without replay', code: error.code, message: error.message }); }
+} catch (error) {
+  failed = true; results.push({ case: 'probe stopped without replay', code: error.code, message: error.message });
+  for (const target of observedTargets) {
+    const data = await adapter.evaluate(target, fixturePointerLog, [], Date.now() + 8000).catch(() => null);
+    if (data) results.push({ case: 'owned fixture pointer diagnostic', target: typeof target === 'number' ? 'root' : 'iframe', ...data });
+  }
+  if (rootSession) {
+    const picture = await send('Page.captureScreenshot', { format: 'png' }, rootSession).catch(() => null);
+    if (picture?.data) await fs.writeFile(path.join(output, 'failed-fixture.png'), Buffer.from(picture.data, 'base64'));
+  }
+}
 finally {
   await fs.writeFile(path.join(output, 'trace.json'), JSON.stringify(trace, null, 2));
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify({ passed: !failed, results }, null, 2));
