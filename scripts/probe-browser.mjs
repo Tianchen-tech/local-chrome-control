@@ -85,7 +85,15 @@ try {
     const progress = { dispatched: false };
     try {
       await adapter.run(method, { tab_id: 7, snapshot_id: shot.snapshot_id, ref: target.ref, ...(value === undefined ? {} : { value }) }, origin, Date.now() + 8000, async () => {}, progress, policy);
-      shot = await adapter.run('page_snapshot', { tab_id: 7 }, origin, Date.now() + 8000, async () => {}, {}, policy);
+      const settled = current => method === 'page_fill' ? current.elements.some(e => e.label === label && e.frame === frame && e.value === value) :
+        current.text.split('[iframe ' + frame + ']')[1]?.split('[iframe')[0].includes('框架计数1');
+      const until = Date.now() + 2000;
+      do {
+        shot = await adapter.run('page_snapshot', { tab_id: 7 }, origin, Date.now() + 8000, async () => {}, {}, policy);
+        if (settled(shot)) break;
+        await pause(50); // Read-only observation; never re-dispatch the input.
+      } while (Date.now() < until);
+      assert.ok(settled(shot), 'The dispatched input must produce its actual fixture result');
       results.push({ case: method + ' ' + label, frame, passed: true, text_tail: shot.text.slice(-150) });
     } catch (error) { results.push({ case: method + ' ' + label, frame, passed: false, code: error.code, message: error.message, dispatched: progress.dispatched }); throw error; }
   };

@@ -3,18 +3,26 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { PROJECT_ROOT, privateDirectory, writePrivateJson, extensionOrigin } from '../server/paths.mjs';
 import { installPlan, launcherText } from '../server/platform.mjs';
-import { privateWindowsPaths, registryEntries, updateRegistry, powershellJson } from '../server/windows-security.mjs';
+import { privateWindowsPaths, secureWindowsDirectory, registryEntries, updateRegistry, powershellJson } from '../server/windows-security.mjs';
 import { NativeDecoder, nativeFrame } from '../server/framing.mjs';
 const windows = { skip: process.platform !== 'win32', timeout: 25_000 };
 
 test('Windows NTFS ownership and ACL deny a descriptor explicitly shared to another identity', windows, async t => {
   const directory = await fs.mkdtemp(path.join(tmpdir(), 'lcc-acl-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
-  await privateDirectory(directory);
+  // Diagnostic stderr is limited to this disposable test directory and contains
+  // no real browser/profile data. Production errors remain sanitized.
+  const execute = (exe, args, options, input) => new Promise((resolve, reject) => {
+    const child = execFile(exe, args, options, (error, stdout, stderr) => {
+      if (error) { t.diagnostic(stderr); reject(error); } else resolve({ stdout });
+    });
+    child.stdin.on('error', () => {}); child.stdin.end(input);
+  });
+  await secureWindowsDirectory(directory, execute);
   const file = path.join(directory, 'descriptor.json'); await writePrivateJson(file, { example: true });
   assert.deepEqual(await privateWindowsPaths(directory, [file]), { directory: true, files: [file] });
   await powershellJson(`$acl=Get-Acl -LiteralPath $data.file; $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-1-0'),'Read','Allow')); Set-Acl -LiteralPath $data.file -AclObject $acl; @{changed=$true} | ConvertTo-Json -Compress;`, { file });

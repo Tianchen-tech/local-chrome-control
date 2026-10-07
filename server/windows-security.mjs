@@ -35,7 +35,7 @@ function Test-Private($item, $isDirectory) {
   };
   return $userFull;
 };`;
-export async function secureWindowsDirectory(directory) {
+export async function secureWindowsDirectory(directory, execute) {
   return powershellJson(aclHelpers + `
 $info=Get-Item -LiteralPath $data.directory -Force;
 if (($info.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or !$info.PSIsContainer) { throw 'unsafe directory' };
@@ -53,7 +53,7 @@ foreach ($owner in @($sid.Value,'S-1-5-18')) {
 };
 Set-Acl -LiteralPath $data.directory -AclObject $acl;
 if (!(Test-Private $data.directory $true)) { throw 'unsafe ACL' };
-@{secured=$true} | ConvertTo-Json -Compress;`, { directory });
+@{secured=$true} | ConvertTo-Json -Compress;`, { directory }, execute);
 }
 export async function secureWindowsFile(filename) {
   return powershellJson(aclHelpers + `

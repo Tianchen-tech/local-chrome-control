@@ -6,7 +6,7 @@ import { Controller } from '../extension/controller.mjs';
 import { createPolicy } from '../extension/policy.mjs';
 import { HOST_NAME, METHODS, VERSION, WIRE_VERSION, errorObject, webOrigin } from '../extension/protocol.mjs';
 
-const script = (await fs.readFile(new URL('../extension/service-worker.mjs', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
+const script = (await fs.readFile(new URL('../extension/service-worker.mjs', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '');
 function worker(initial = {}) {
   const data = structuredClone(initial), listeners = [], events = { addListener() {} };
   const tab = { id: 7, title: 'Synthetic preference test', url: 'https://example.test/' };
