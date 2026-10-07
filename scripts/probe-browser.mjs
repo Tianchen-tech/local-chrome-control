@@ -20,6 +20,9 @@ const child = spawn(executable, [
   '--headless=new', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0',
   '--remote-debugging-address=127.0.0.1', '--user-data-dir=' + profile, '--window-size=1470,900', 'about:blank'
 ], { stdio: 'ignore' });
+// Subscribe before any await: Windows launchers can exit before cleanup begins.
+const childExited = new Promise(resolve => { child.once('exit', resolve); child.once('error', resolve); });
+const childAlive = () => child.exitCode === null && child.signalCode === null;
 const trace = [], results = [], callbacks = new Map(), listeners = [];
 let socket, next = 0, rootSession, targetId, failed = false, pointerServer, adapter;
 const observedTargets = [];
@@ -32,6 +35,15 @@ function watchFixturePointer() {
 }
 function fixturePointerLog() { return { events: globalThis.__fixturePointerLog || [], width: innerWidth, height: innerHeight, dpr: devicePixelRatio, scrollY }; }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function ready(read, matches, description) {
+  const until = Date.now() + 10000;
+  do {
+    const value = await read();
+    if (matches(value)) return value;
+    await pause(100); // Read-only readiness observation, before any input.
+  } while (Date.now() < until);
+  throw new Error('Owned fixture did not become ready: ' + description);
+}
 async function send(method, params = {}, sessionId) {
   const id = ++next;
   const entry = { method, session: sessionId === rootSession ? 'root' : sessionId ? 'iframe' : 'browser' };
@@ -56,7 +68,7 @@ try {
   let port;
   for (let i = 0; i < 100; i++) {
     try { port = (await fs.readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n'); break; } catch {}
-    if (child.exitCode !== null) throw new Error('Headless Chrome exited');
+    if (!childAlive() && process.platform !== 'win32') throw new Error('Headless Chrome exited');
     await pause(100);
   }
   assert.ok(port, 'Isolated Chrome must start');
@@ -85,10 +97,14 @@ try {
     adapter.evaluate = (id, fn, args, deadline) => evaluate(id, fn, args[3] === 'measure-point' ? [...args.slice(0, 3), 'point', ...args.slice(4)] : args, deadline);
   }
   await adapter.attach(7);
-  await pause(300); // Startup of this disposable fixture only; never wait/replay a write.
-  const metadata = await adapter.tab(7); results.push({ case: 'metadata after activeTab', title: metadata.title || '', url: metadata.url });
+  await send('Target.activateTarget', { targetId });
+  await send('Page.bringToFront', {}, rootSession);
+  const metadata = await ready(() => adapter.tab(7), tab => tab.title?.startsWith('Local Chrome Control ') && tab.url === origin + '/?mode=extended', 'initial document'); results.push({ case: 'metadata after activeTab', title: metadata.title || '', url: metadata.url });
   assert.ok(metadata.title.startsWith('Local Chrome Control '));
-  let shot = await adapter.run('page_snapshot', { tab_id: 7 }, origin, Date.now() + 8000, async () => {}, {}, policy);
+  let shot = await ready(() => adapter.run('page_snapshot', { tab_id: 7 }, origin, Date.now() + 8000, async () => {}, {}, policy),
+    current => ['Same frame input', 'Cross frame input'].every(label => current.elements.some(e => e.label === label && e.frame)), 'both iframe documents');
+  // A foreground, painted test tab matches the extension's real Chrome use.
+  await send('Page.captureScreenshot', { format: 'png' }, rootSession);
   assert.ok(shot.title.startsWith('Local Chrome Control '), 'Only the owned synthetic fixture is permitted');
   const action = async (method, label, value, frame) => {
     const target = shot.elements.find(e => e.label === label && (frame ? e.frame === frame : !e.frame));
@@ -126,8 +142,8 @@ try {
   await controller.grant({ id: 7, url: origin }, { mode: 'extended' });
   const lease = await controller.execute('tab_claim', { tab_id: 7, task_name: 'Disposable navigation regression' });
   await controller.execute('page_navigate', { tab_id: 7, lease_id: lease.lease_id, request_id: 'probe-cross-site-' + Date.now(), url: 'http://localhost:19321/second?mode=extended' });
-  await pause(100);
-  const navigated = await controller.execute('page_snapshot', { tab_id: 7, lease_id: lease.lease_id });
+  const navigated = await ready(() => controller.execute('page_snapshot', { tab_id: 7, lease_id: lease.lease_id }),
+    current => current.title.includes('第二网站'), 'cross-site document');
   assert.ok(navigated.title.includes('第二网站'));
   results.push({ case: 'controller confirms cross-site navigation and retains its lease', passed: true, title: navigated.title });
   await controller.execute('tab_release', { tab_id: 7, lease_id: lease.lease_id });
@@ -138,7 +154,7 @@ try {
   pointerServer.listen(0, '127.0.0.1'); await once(pointerServer, 'listening');
   const pointerOrigin = 'http://127.0.0.1:' + pointerServer.address().port;
   await adapter.run('page_navigate', { tab_id: 7, url: pointerOrigin }, origin, Date.now() + 8000, async () => {}, {}, policy);
-  await pause(100);
+  await ready(() => adapter.tab(7), tab => tab.title === 'Strict pointer regression fixture', 'strict pointer document');
   const pointerShot = await adapter.run('page_snapshot', { tab_id: 7 }, pointerOrigin, Date.now() + 8000, async () => {}, {}, policy);
   const button = pointerShot.elements.find(e => e.label === 'Strict menu'); assert.ok(button);
   await adapter.run('page_click', { tab_id: 7, snapshot_id: pointerShot.snapshot_id, ref: button.ref }, pointerOrigin, Date.now() + 8000, async () => {}, {}, policy);
@@ -162,10 +178,13 @@ finally {
   await fs.writeFile(path.join(output, 'trace.json'), JSON.stringify(trace, null, 2));
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify({ passed: !failed, results }, null, 2));
   pointerServer?.closeAllConnections(); pointerServer?.close();
-  socket?.close(); child.kill('SIGTERM');
-  if (child.exitCode === null) await Promise.race([once(child, 'exit'), pause(3000)]);
-  if (child.exitCode === null) { child.kill('SIGKILL'); await once(child, 'exit'); }
-  await fs.rm(profile, { recursive: true, force: true });
+  // Close only the browser launched with this fresh disposable profile. On
+  // Windows the launcher may already have exited while its browser still runs.
+  if (socket?.readyState === WebSocket.OPEN) await send('Browser.close').catch(() => {});
+  socket?.close();
+  if (childAlive()) await Promise.race([childExited, pause(3000)]);
+  if (childAlive()) { child.kill('SIGKILL'); await Promise.race([childExited, pause(3000)]); }
+  await fs.rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   console.log(JSON.stringify({ passed: !failed, results, trace: path.join(output, 'trace.json') }, null, 2));
 }
 if (failed) process.exitCode = 1;
