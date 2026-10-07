@@ -15,7 +15,8 @@ export async function powershellJson(source, value, execute = run) {
   const command = Buffer.from(script, 'utf16le').toString('base64');
   const executable = path.win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   try {
-    const { stdout } = await execute(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', command], { windowsHide: true, timeout: 10_000, maxBuffer: 1024 * 1024 }, data);
+    const { stdout } = await execute(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', command], { // Windows PowerShell cold startup can exceed 10 s on a fresh runner.
+      windowsHide: true, timeout: 30_000, maxBuffer: 1024 * 1024 }, data);
     return JSON.parse(stdout.replace(/^\uFEFF/, '').trim());
   } catch { throw new Error('WINDOWS_SECURITY_CHECK_FAILED'); }
 }

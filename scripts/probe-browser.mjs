@@ -36,23 +36,29 @@ function watchFixturePointer() {
 function fixturePointerLog() { return { events: globalThis.__fixturePointerLog || [], width: innerWidth, height: innerHeight, dpr: devicePixelRatio, scrollY }; }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function ready(read, matches, description) {
-  const until = Date.now() + 10000;
+  const until = Date.now() + 30000;
   do {
-    const value = await read();
-    if (matches(value)) return value;
+    try {
+      const value = await read();
+      if (matches(value)) return value;
+    } catch (error) {
+      // During startup/navigation only, an owned read can outlive Chrome's
+      // short metadata deadline. No input operation is ever passed to ready.
+      if (!['TIMEOUT', 'CONTEXT_LOST', 'ORIGIN_CHANGED'].includes(error.code)) throw error;
+    }
     await pause(100); // Read-only readiness observation, before any input.
   } while (Date.now() < until);
   throw new Error('Owned fixture did not become ready: ' + description);
 }
 async function send(method, params = {}, sessionId) {
-  const id = ++next;
+  const id = ++next, started = Date.now();
   const entry = { method, session: sessionId === rootSession ? 'root' : sessionId ? 'iframe' : 'browser' };
   if (method === 'DOM.getNodeForLocation' || method === 'Input.dispatchMouseEvent') entry.params = params;
   trace.push(entry);
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { callbacks.delete(id); reject(new Error('Probe command timeout: ' + method)); }, 8000);
+    const timer = setTimeout(() => { callbacks.delete(id); entry.timeout = true; entry.elapsed_ms = Date.now() - started; reject(new Error('Probe command timeout: ' + method)); }, 8000);
     callbacks.set(id, message => {
-      clearTimeout(timer);
+      clearTimeout(timer); entry.elapsed_ms = Date.now() - started;
       if (message.error) { entry.error = message.error; reject(new Error(message.error.message)); }
       else {
         if (['DOM.getNodeForLocation', 'DOM.getFrameOwner', 'Page.getFrameTree', 'Target.getTargetInfo'].includes(method)) entry.result = message.result;
