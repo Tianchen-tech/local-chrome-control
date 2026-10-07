@@ -1,14 +1,23 @@
 {
   "name": "local-chrome-control",
-  "version": "0.1.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22.22.2"
   },
   "scripts": {
+    "test": "node scripts/test.mjs",
+    "check": "node scripts/validate.mjs",
+    "prepare:local": "node scripts/prepare.mjs",
     "install:preview": "node scripts/install.mjs",
     "doctor": "node scripts/doctor.mjs",
-    "package:store": "node scripts/package-store.mjs"
+    "package": "node scripts/package.mjs",
+    "fixture": "node scripts/fixture.mjs",
+    "setup:windows": "node scripts/windows-setup.mjs",
+    "verify:browser": "node scripts/verify-browser.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "30.0.1"
   }
 }

@@ -1,35 +1,51 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { homedir } from 'node:os';
-import { PROJECT_ROOT, extensionOrigin, runtimeRoot, privateDirectory } from '../server/paths.mjs';
+import { PROJECT_ROOT, extensionOrigin, privateDirectory, writePrivateJson } from '../server/paths.mjs';
+import { installPlan, launcherText, ownsManifest, sameInstallationPath } from '../server/platform.mjs';
+import { registryEntries, updateRegistry } from '../server/windows-security.mjs';
 import { HOST_NAME } from '../extension/protocol.mjs';
-if (process.platform !== 'darwin') throw new Error('This installer supports macOS only.');
 const apply = process.argv.includes('--install'), remove = process.argv.includes('--uninstall');
 if (apply && remove) throw new Error('Choose --install or --uninstall.');
-const directory = path.join(homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts');
-const manifestPath = path.join(directory, HOST_NAME + '.json');
-const launcherPath = path.join(runtimeRoot(), 'native-host.sh');
-const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
-const launcher = '#!/bin/sh\nexec ' + quote(process.execPath) + ' ' + quote(path.join(PROJECT_ROOT, 'server', 'native-host.mjs')) + ' "$@"\n';
-const manifest = { name: HOST_NAME, description: 'Local Chrome Control local-only bridge', path: launcherPath, type: 'stdio', allowed_origins: [await extensionOrigin()] };
-console.log(JSON.stringify({ mode: remove ? 'uninstall' : apply ? 'install' : 'preview-only', native_manifest: manifestPath, launcher: launcherPath,
-  allowed_extension: manifest.allowed_origins[0], extension_folder: path.join(PROJECT_ROOT, 'extension'),
-  mcp_command: process.execPath, mcp_args: [path.join(PROJECT_ROOT, 'server', 'mcp.mjs')],
+const plan = installPlan({ project: PROJECT_ROOT, node: process.execPath, host: HOST_NAME, origin: await extensionOrigin() });
+const launcher = launcherText(plan, process.execPath, PROJECT_ROOT);
+console.log(JSON.stringify({ mode: remove ? 'uninstall' : apply ? 'install' : 'preview-only', platform: plan.platform,
+  native_manifest: plan.manifestPath, launcher: plan.launcherPath,
+  ...(plan.registryKey ? { registry: 'HKCU\\' + plan.registryKey, registry_views: ['32', '64'] } : {}),
+  allowed_extension: plan.manifest.allowed_origins[0], extension_folder: path.join(PROJECT_ROOT, 'extension'),
+  mcp_command: plan.mcp.command, mcp_args: plan.mcp.args,
   permissions: ['activeTab', 'debugger', 'nativeMessaging', 'storage', 'alarms'] }, null, 2));
-if (!apply && !remove) console.log('\n尚未修改 Chrome 或 Codex 配置。审核后运行 node scripts/install.mjs --install，仅安装本地连接程序。');
-else if (apply) {
-  await privateDirectory(); await fs.mkdir(directory, { recursive: true });
-  let existing;
-  try { existing = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  if (existing && (existing.path !== launcherPath || JSON.stringify(existing.allowed_origins) !== JSON.stringify(manifest.allowed_origins))) throw new Error('An unrelated native host already uses this name. No files were overwritten.');
-  await fs.writeFile(launcherPath, launcher, { mode: 0o700 }); await fs.chmod(launcherPath, 0o700);
-  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 });
-  console.log('\n本地连接程序已安装。下一步由用户在 Chrome 加载 extension 文件夹并授予权限。');
-} else {
-  let existing;
-  try { existing = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  if (existing && (existing.path !== launcherPath || JSON.stringify(existing.allowed_origins) !== JSON.stringify(manifest.allowed_origins))) throw new Error('Refusing to remove an unrelated native host.');
-  if (existing) await fs.unlink(manifestPath);
-  await fs.unlink(launcherPath).catch(error => { if (error.code !== 'ENOENT') throw error; });
-  console.log('\n本地连接程序已移除。Chrome 扩展和 Codex MCP 项请在各自设置里移除。');
+async function readFile(filename) {
+  try {
+    const stat = await fs.lstat(filename);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Refusing a linked or non-file installation target.');
+    return await fs.readFile(filename, 'utf8');
+  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+}
+if (!apply && !remove) console.log('\nPreview only. Run node scripts/install.mjs --install to register this user\'s native host.');
+else {
+  // Inspect every registration and file before any install/uninstall mutation.
+  if (plan.registryKey) {
+    const { entries } = await registryEntries(plan.registryKey);
+    if (entries.some(e => !sameInstallationPath(e.path, plan.manifestPath))) throw new Error('An unrelated registry host uses this name. Nothing changed.');
+  }
+  const raw = await readFile(plan.manifestPath);
+  const existing = raw === null ? null : JSON.parse(raw);
+  if (existing && !ownsManifest(existing, plan.manifest)) throw new Error('An unrelated native host uses this name. Nothing changed.');
+  const existingLauncher = await readFile(plan.launcherPath);
+  if (!existing && existingLauncher !== null && existingLauncher !== launcher) throw new Error('An unrelated launcher uses this path. Nothing changed.');
+  if (apply) {
+    await privateDirectory(); await fs.mkdir(plan.directory, { recursive: true });
+    const directoryStat = await fs.lstat(plan.directory);
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) throw new Error('Refusing a linked native manifest directory.');
+    await fs.writeFile(plan.launcherPath, launcher, { mode: 0o700 });
+    if (plan.platform !== 'win32') await fs.chmod(plan.launcherPath, 0o700);
+    await writePrivateJson(plan.manifestPath, plan.manifest);
+    if (plan.registryKey) await updateRegistry(plan.registryKey, plan.manifestPath);
+    console.log('\nNative host installed for this user. Load the extension folder in Chrome and authorize a tab yourself.');
+  } else {
+    if (plan.registryKey) await updateRegistry(plan.registryKey, plan.manifestPath, true);
+    if (existing) await fs.unlink(plan.manifestPath);
+    if (existingLauncher !== null) await fs.unlink(plan.launcherPath);
+    console.log('\nNative host registration and launcher removed. Remove the Chrome extension and MCP entry in their own settings.');
+  }
 }

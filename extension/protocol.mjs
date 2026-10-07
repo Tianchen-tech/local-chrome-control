@@ -1,4 +1,4 @@
-export const VERSION = '0.1.1';
+export const VERSION = '0.3.0';
 export const WIRE_VERSION = 1;
 export const HOST_NAME = 'com.localchrome.control';
 export const LEASE_MS = 10 * 60 * 1000;
@@ -9,7 +9,7 @@ export const LEDGER_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const LEDGER_LIMIT = 5000;
 export const MAX_SCREENSHOT_BASE64 = 5_000_000;
 export const READ_METHODS = new Set(['status', 'tabs_list', 'page_snapshot', 'page_screenshot', 'request_status']);
-export const MUTATIONS = new Set(['page_click', 'page_fill', 'page_select', 'page_navigate', 'page_press_key']);
+export const MUTATIONS = new Set(['page_click', 'page_fill', 'page_select', 'page_navigate', 'page_press_key', 'page_type_text']);
 // Scrolling moves the viewport but submits nothing, so it needs no request_id.
 export const METHODS = new Set([...READ_METHODS, ...MUTATIONS, 'page_scroll', 'tab_claim', 'tab_release']);
 export const SCROLL_DIRECTIONS = ['up', 'down', 'left', 'right'];
@@ -88,7 +88,7 @@ export function validate(method, args = {}) {
   }
   if (method === 'tab_claim') stringArg(args.task_name, 'task_name', 80);
   if (method.startsWith('page_') || method === 'tab_release') stringArg(args.lease_id, 'lease_id', 100);
-  if (['page_click', 'page_fill', 'page_select'].includes(method)) {
+  if (['page_click', 'page_fill', 'page_select', 'page_type_text'].includes(method)) {
     stringArg(args.snapshot_id, 'snapshot_id', 100);
     stringArg(args.ref, 'ref', 30);
   }
@@ -105,9 +105,11 @@ export function validate(method, args = {}) {
   if (method === 'page_press_key' && !keyDefinition(args.key)) {
     fail('INVALID_ARGUMENT', '不支持的按键。可用 Enter、Escape、Tab、Backspace、Delete、Space、方向键、Home、End、PageUp、PageDown（可加 Shift+ 前缀），或单个字母、数字、符号。');
   }
-  if (method === 'page_fill') {
+  if (method === 'page_fill' || method === 'page_type_text') {
     if (typeof args.value !== 'string' || args.value.length > 20_000) fail('INVALID_ARGUMENT', '填写内容最多 20,000 字符。');
   }
+  if (method === 'page_type_text' && args.mode !== undefined && !['insert', 'characters'].includes(args.mode)) fail('INVALID_ARGUMENT', 'mode 必须为 insert 或 characters。');
+  if (method === 'page_type_text' && args.mode === 'characters' && Array.from(args.value).length > 500) fail('INVALID_ARGUMENT', '逐字输入最多 500 个字符。');
   if (method === 'page_select') stringArg(args.value, 'value', 500);
   if (method === 'page_navigate') { stringArg(args.url, 'url', 4000); webOrigin(args.url); }
   if (MUTATIONS.has(method) || method === 'request_status') {
@@ -118,6 +120,7 @@ export function validate(method, args = {}) {
 }
 export async function fingerprint(method, args) {
   const content = [method, args.tab_id, args.lease_id, args.snapshot_id || '', args.ref || '', args.value ?? '', args.url || ''];
+  if (args.mode !== undefined) content.push(args.mode);
   if (args.key !== undefined) content.push(args.key); // Appended so earlier fingerprints stay unchanged.
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(content)));
   return Array.from(new Uint8Array(hash), x => x.toString(16).padStart(2, '0')).join('');

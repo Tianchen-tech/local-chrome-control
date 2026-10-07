@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "local_chrome": {
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/server/mcp.mjs"
+      ],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

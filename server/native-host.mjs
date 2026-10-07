@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { NativeDecoder, LineDecoder, nativeFrame } from './framing.mjs';
 import { PROJECT_ROOT, privateDirectory, extensionOrigin, writePrivateJson } from './paths.mjs';
+import { ipcEndpoint } from './platform.mjs';
 import { METHODS, MUTATIONS, WIRE_VERSION, validate, errorObject } from '../extension/protocol.mjs';
 
 // stdout is exclusively Chrome's binary native-messaging stream.
@@ -14,11 +15,7 @@ if (process.argv[2] !== allowed) {
 }
 const root = await privateDirectory();
 const sessionId = randomBytes(6).toString('hex');
-const socketPath = path.join(root, sessionId + '.sock');
-if (Buffer.byteLength(socketPath) > 100) {
-  process.stderr.write('Local Chrome Control: runtime path too long for a Unix socket\n');
-  process.exit(1);
-}
+const socketPath = ipcEndpoint(root, sessionId);
 const descriptorPath = path.join(root, sessionId + '.json');
 const token = randomBytes(32).toString('hex');
 const pending = new Map();
@@ -82,7 +79,7 @@ const server = net.createServer(socket => {
   socket.on('close', () => { clients.delete(socket); });
 });
 await new Promise((resolve, reject) => { server.once('error', reject); server.listen(socketPath, resolve); });
-await fs.chmod(socketPath, 0o600);
+if (process.platform !== 'win32') await fs.chmod(socketPath, 0o600);
 
 async function shutdown(code = 0) {
   if (shuttingDown) return;
@@ -92,7 +89,9 @@ async function shutdown(code = 0) {
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.socket.destroy(); }
   for (const socket of clients) socket.destroy();
   server.close();
-  await Promise.all([fs.unlink(socketPath).catch(() => {}), fs.unlink(descriptorPath).catch(() => {})]);
+  // Windows pipe lifetime is managed by the kernel; it is not a disk file.
+  await Promise.all([process.platform !== 'win32' ? fs.unlink(socketPath).catch(() => {}) : null,
+    fs.unlink(descriptorPath).catch(() => {})]);
   process.exit(code);
 }
 const decoder = new NativeDecoder(message => {

@@ -1,3 +1,4 @@
+import { createPolicy, permitsOrigin, checkMethod } from './policy.mjs';
 import { LEASE_MS, LEDGER_RETENTION_MS, LEDGER_LIMIT, MUTATIONS, VERSION, fail, validate, webOrigin, safeUrl, fingerprint, errorObject, deadlineCheck } from './protocol.mjs';
 
 // Browser access is injected, so state and failure recovery can be tested without touching a real profile.
@@ -9,6 +10,8 @@ export class Controller {
     this.grants = new Map();
     this.pendingGrants = new Map();
     this.locks = new Map();
+    this.reconfiguring = new Set();
+    this.revocations = new Map();
     this.ledger = {};
     this.recent = [];
     this.ready = this.restore();
@@ -24,9 +27,11 @@ export class Controller {
     // debugger sessions they left behind so Chrome stops showing a debugging banner.
     try { await this.adapter.detachOrphans?.(); } catch {}
   }
-  async grant(tab) {
+  async grant(tab, options = {}) {
     await this.ready;
     const origin = webOrigin(tab.url);
+    const policy = createPolicy(origin, options, this.now());
+    if (!permitsOrigin(policy, origin)) fail('SITE_BLOCKED', '当前网站在黑名单中，不能授权。请先移除对应域名。');
     if (this.grants.has(tab.id)) return this.list();
     if (this.pendingGrants.has(tab.id)) fail('GRANT_IN_PROGRESS', '正在处理此标签页的授权，请稍后再试。');
     const pending = { origin, cancelled: false };
@@ -37,7 +42,7 @@ export class Controller {
       const current = await this.adapter.tab(tab.id);
       if (pending.cancelled) fail('AUTHORIZATION_CHANGED', '授权已停止，请重新点击授权。');
       if (webOrigin(current.url) !== origin) fail('ORIGIN_CHANGED', '页面已跳转，请在新页面重新授权。');
-      this.grants.set(tab.id, { tabId: tab.id, origin, title: current.title || '', epoch: crypto.randomUUID(), grantedAt: this.now(), lease: null });
+      this.grants.set(tab.id, { tabId: tab.id, origin, title: current.title || '', epoch: crypto.randomUUID(), grantedAt: this.now(), lease: null, policy, revision: 0 });
       return await this.list();
     } catch (error) {
       this.grants.delete(tab.id);
@@ -47,24 +52,50 @@ export class Controller {
       this.pendingGrants.delete(tab.id);
     }
   }
+  async reconfigure(tab, options) {
+    await this.ready;
+    const origin = webOrigin(tab.url), policy = createPolicy(origin, options, this.now());
+    const old = this.grants.get(tab.id);
+    if (!old || this.pendingGrants.has(tab.id) || this.reconfiguring.has(tab.id)) fail('AUTHORIZATION_CHANGED', '当前授权已变化，请刷新弹窗。');
+    if (!permitsOrigin(policy, origin)) {
+      await this.revoke(tab.id, 'SITE_BLOCKED');
+      return this.list();
+    }
+    this.reconfiguring.add(tab.id);
+    this.grants.delete(tab.id); // Invalidate the old lease before any await.
+    this.adapter.forget(tab.id);
+    const revision = this.revocations.get(tab.id) || 0;
+    try {
+      const current = await this.adapter.tab(tab.id);
+      if ((this.revocations.get(tab.id) || 0) !== revision) fail('AUTHORIZATION_CHANGED', '授权调整已被停止。');
+      if (webOrigin(current.url) !== origin) fail('ORIGIN_CHANGED', '页面已跳转，请重新选择范围。');
+      this.grants.set(tab.id, { tabId: tab.id, origin, title: current.title || '', epoch: crypto.randomUUID(), grantedAt: this.now(), lease: null, policy, revision: 0 });
+      return await this.list();
+    } catch (error) {
+      this.grants.delete(tab.id); await this.adapter.detach(tab.id).catch(() => {}); throw error;
+    } finally { this.reconfiguring.delete(tab.id); }
+  }
   async revoke(tabId, reason = 'USER_STOPPED') {
+    this.revocations.set(tabId, (this.revocations.get(tabId) || 0) + 1);
     const grant = this.grants.get(tabId);
     const pending = this.pendingGrants.get(tabId);
     if (pending) pending.cancelled = true;
     this.grants.delete(tabId); // Revoke before awaiting: pending commands see the change.
     this.adapter.forget(tabId);
-    if (grant || pending) await this.adapter.detach(tabId).catch(() => {});
+    if (grant || pending || this.reconfiguring.has(tabId)) await this.adapter.detach(tabId).catch(() => {});
     if (grant) this.record('stop', 0, reason);
   }
   async revokeAll() {
-    await Promise.all([...new Set([...this.grants.keys(), ...this.pendingGrants.keys()])].map(id => this.revoke(id)));
+    await Promise.all([...new Set([...this.grants.keys(), ...this.pendingGrants.keys(), ...this.reconfiguring])].map(id => this.revoke(id)));
   }
   async onNavigation(tabId, url) {
     const grant = this.grants.get(tabId) || this.pendingGrants.get(tabId);
     if (!grant) return;
     try {
-      if (webOrigin(url) !== grant.origin) await this.revoke(tabId, 'ORIGIN_CHANGED');
-      else this.adapter.forget(tabId);
+      const origin = webOrigin(url);
+      if (grant.policy && grant.policy.expires_at <= this.now()) await this.revoke(tabId, 'AUTHORIZATION_EXPIRED');
+      else if (grant.policy ? !permitsOrigin(grant.policy, origin) : origin !== grant.origin) await this.revoke(tabId, 'ORIGIN_CHANGED');
+      else { grant.origin = origin; grant.revision = (grant.revision || 0) + 1; this.adapter.forget(tabId); }
     } catch { await this.revoke(tabId, 'ORIGIN_CHANGED'); }
   }
   async list() {
@@ -73,9 +104,12 @@ export class Controller {
       try {
         const tab = await this.adapter.tab(id);
         if (this.grants.get(id) !== grant) continue;
-        if (webOrigin(tab.url) !== grant.origin) { await this.revoke(id, 'ORIGIN_CHANGED'); continue; }
+        if (grant.policy.expires_at <= this.now()) { await this.revoke(id, 'AUTHORIZATION_EXPIRED'); continue; }
+        const origin = webOrigin(tab.url);
+        if (!permitsOrigin(grant.policy, origin)) { await this.revoke(id, 'ORIGIN_CHANGED'); continue; }
+        if (origin !== grant.origin) { grant.origin = origin; grant.revision++; this.adapter.forget(id); }
         const lease = grant.lease?.expiresAt > this.now() ? grant.lease : null;
-        result.push({ tab_id: id, title: tab.title || '', url: safeUrl(tab.url), origin: grant.origin,
+        result.push({ tab_id: id, title: tab.title || '', url: safeUrl(tab.url), origin: grant.origin, mode: grant.policy.mode, scope_kind: grant.policy.scope_kind, blocked_sites: grant.policy.blocked_sites, authorization_minutes: grant.policy.minutes, allowed_origins: grant.policy.origins, frame_origins: grant.policy.frame_origins, authorization_expires_at: grant.policy.expires_at,
           controlled_by: lease?.taskName || null, lease_expires_at: lease?.expiresAt || null });
       } catch { await this.revoke(id, 'TAB_CLOSED'); }
     }
@@ -84,6 +118,7 @@ export class Controller {
   async guard(args, epoch) {
     const grant = this.grants.get(args.tab_id);
     if (!grant) fail('TAB_NOT_AUTHORIZED', '请在扩展弹窗里允许控制这个标签页。');
+    if (grant.policy.expires_at <= this.now()) { await this.revoke(args.tab_id, 'AUTHORIZATION_EXPIRED'); fail('AUTHORIZATION_EXPIRED', '授权已到期，请由用户在弹窗重新授权。'); }
     if (epoch && grant.epoch !== epoch) fail('AUTHORIZATION_CHANGED', '标签页授权已改变，请重新获取控制权。');
     const lease = grant.lease;
     if (!lease || lease.id !== args.lease_id || lease.expiresAt <= this.now()) {
@@ -93,10 +128,12 @@ export class Controller {
     if (!this.grants.has(args.tab_id)) fail('TAB_NOT_AUTHORIZED', '这个标签页已停止授权。');
     if (this.grants.get(args.tab_id) !== grant) fail('AUTHORIZATION_CHANGED', '标签页授权已改变，请重新获取控制权。');
     if (grant.lease !== lease || lease.expiresAt <= this.now()) fail('LEASE_EXPIRED', '任务控制权已失效，请重新读取页面。');
-    if (webOrigin(tab.url) !== grant.origin) {
+    const origin = webOrigin(tab.url);
+    if (!permitsOrigin(grant.policy, origin)) {
       await this.revoke(args.tab_id, 'ORIGIN_CHANGED');
-      fail('ORIGIN_CHANGED', '页面已切换网站，需要重新授权。');
+      fail('ORIGIN_CHANGED', '页面超出授权网站范围，需要用户重新授权。');
     }
+    if (origin !== grant.origin) { grant.origin = origin; grant.revision++; this.adapter.forget(args.tab_id); }
     grant.lease.expiresAt = this.now() + LEASE_MS;
     return grant;
   }
@@ -155,22 +192,28 @@ export class Controller {
       const tab = await this.adapter.tab(args.tab_id);
       if (!this.grants.has(args.tab_id)) fail('TAB_NOT_AUTHORIZED', '这个标签页已停止授权。');
       if (this.grants.get(args.tab_id) !== grant) fail('AUTHORIZATION_CHANGED', '标签页授权已改变，请重新获取控制权。');
-      if (webOrigin(tab.url) !== grant.origin) {
-        await this.revoke(args.tab_id);
-        fail('ORIGIN_CHANGED', '页面已切换网站，需要重新授权。');
-      }
+      if (grant.policy.expires_at <= this.now()) { await this.revoke(args.tab_id); fail('AUTHORIZATION_EXPIRED', '授权已到期。'); }
+      const origin = webOrigin(tab.url);
+      if (!permitsOrigin(grant.policy, origin)) { await this.revoke(args.tab_id); fail('ORIGIN_CHANGED', '页面超出授权网站范围。'); }
+      if (origin !== grant.origin) { grant.origin = origin; grant.revision++; this.adapter.forget(args.tab_id); }
       grant.lease = { id: crypto.randomUUID(), taskName: args.task_name, expiresAt: this.now() + LEASE_MS };
-      return { tab_id: args.tab_id, lease_id: grant.lease.id, expires_at: grant.lease.expiresAt, origin: grant.origin };
+      return { tab_id: args.tab_id, lease_id: grant.lease.id, expires_at: grant.lease.expiresAt, origin: grant.origin, mode: grant.policy.mode, scope_kind: grant.policy.scope_kind, blocked_sites: grant.policy.blocked_sites, authorization_minutes: grant.policy.minutes, allowed_origins: grant.policy.origins, frame_origins: grant.policy.frame_origins, authorization_expires_at: grant.policy.expires_at };
     }
     const grant = await this.guard(args);
     if (method === 'tab_release') { grant.lease = null; this.adapter.forget(args.tab_id); return { released: true }; }
-    const guard = this.guardFor(args, grant.epoch, deadline);
-    const result = await this.adapter.run(method, args, grant.origin, deadline, guard);
+    checkMethod(grant.policy, method);
+    const guard = this.guardFor(args, grant.epoch, deadline, method, grant.revision);
+    const result = await this.adapter.run(method, args, grant.origin, deadline, guard, {}, grant.policy);
     await guard(); // A navigation racing a read must not expose another origin's page.
     return result;
   }
-  guardFor(args, epoch, deadline) {
-    return async () => { deadlineCheck(deadline); const current = await this.guard(args, epoch); deadlineCheck(deadline); return current; };
+  guardFor(args, epoch, deadline, method, revision) {
+    return async () => {
+      deadlineCheck(deadline); const current = await this.guard(args, epoch);
+      checkMethod(current.policy, method);
+      if (method !== 'page_navigate' && revision !== undefined && current.revision !== revision) fail('CONTEXT_LOST', '页面已跳转，请重新读取快照。');
+      deadlineCheck(deadline); return current;
+    };
   }
   async mutate(method, args, deadline) {
     // Resolve duplicates before checking an expired lease: querying an earlier result is safe.
@@ -190,14 +233,16 @@ export class Controller {
     try {
       deadlineCheck(deadline);
       const grant = await this.guard(args);
-      if (method === 'page_navigate' && webOrigin(args.url) !== grant.origin) {
-        fail('ORIGIN_NOT_AUTHORIZED', '仅允许在已授权网站内跳转。请手动打开新网站，再在扩展里授权。');
+      checkMethod(grant.policy, method);
+      if (method === 'page_navigate' && !permitsOrigin(grant.policy, webOrigin(args.url))) {
+        fail(grant.policy.mode === 'extended' ? 'SITE_BLOCKED' : 'ORIGIN_NOT_AUTHORIZED', grant.policy.mode === 'extended' ? '目标网站在本次授权的黑名单中，不能跳转或操作。' : '当前模式仅允许同网站跳转。跨站操作请由用户在弹窗选择扩展模式。');
       }
       await this.saveRecord(args.request_id, { fingerprint: hash, epoch: grant.epoch, status: 'pending', at: this.now() });
       record = { fingerprint: hash, epoch: grant.epoch };
-      const guard = this.guardFor(args, grant.epoch, deadline);
+      const guard = this.guardFor(args, grant.epoch, deadline, method, grant.revision);
       await guard();
-      const result = await this.adapter.run(method, args, grant.origin, deadline, guard, progress);
+      const result = await this.adapter.run(method, args, grant.origin, deadline, guard, progress, grant.policy);
+      await guard();
       const outcome = { request_id: args.request_id, status: 'done', note: '已执行操作；请读取新快照确认网页结果。' };
       await this.saveRecord(args.request_id, { ...record, status: 'done', at: this.now(), outcome });
       return { ...outcome, ...result?.details };
@@ -210,7 +255,7 @@ export class Controller {
       }
       await this.saveRecord(args.request_id, { ...record, status: 'unknown', at: this.now(), outcome: { error: info } });
       fail('ACTION_STATUS_UNKNOWN', '准备动作或网页操作可能已生效，但未得到完整确认。请先核对页面，不能自动重复执行。', {
-        request_id: args.request_id, cause: error.code || 'BROWSER_ERROR'
+        request_id: args.request_id, cause: error.code || 'BROWSER_ERROR', ...(info.details?.command ? { command: info.details.command } : {})
       });
     }
   }

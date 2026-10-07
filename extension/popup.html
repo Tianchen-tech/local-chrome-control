@@ -7,9 +7,20 @@
 <main>
   <section class="connection"><div class="status-line"><span id="dot" class="dot"></span><strong id="status">检查连接…</strong><button id="reconnect" class="link">重新连接</button></div><p id="connection-note">控制消息通过本机连接传递。</p><p id="session-id" class="session-id" hidden></p></section>
   <section class="tab-card"><div class="eyebrow">当前标签页</div><h2 id="tab-title">正在读取…</h2><p id="tab-origin" class="origin"></p><div id="permission" class="permission">尚未授权</div>
-    <button id="grant" class="primary" disabled>允许控制此标签页</button><button id="stop" class="danger" hidden>停止控制此标签页</button><p class="hint">切换到其他网站会自动收回授权。你可以随时停止。</p></section>
+    <section class="scope" aria-label="控制模式">
+      <label for="mode">控制模式</label><select id="mode"><option value="readonly">只读 · 读取与截图</option><option value="standard" selected>标准 · 当前网站可读写</option><option value="extended">扩展 · 所有普通网站，排除黑名单</option></select>
+      <p id="mode-note" class="hint">标准模式仅控制当前网站，支持富文本、开放 Shadow DOM 和同源框架。</p>
+      <div id="extended-fields" hidden><label for="blocked-sites">不允许控制的网站（选填，每行一个域名）</label><textarea id="blocked-sites" rows="3" placeholder="example.com&#10;也可粘贴完整网址"></textarea>
+      <p class="hint">域名及其子域名、所有端口均排除，包括内嵌框架。留空即允许所有普通网站。设置会记住供下次授权使用；其他已授权标签页需分别应用修改。</p></div>
+      <label for="minutes">有效期</label><select id="minutes"><option value="15">15 分钟</option><option value="30" selected>30 分钟</option><option value="60">60 分钟</option><option value="120">120 分钟</option></select>
+      <p id="scope-summary" class="hint" hidden></p>
+      <p class="hint">只读限制插件动作；安装时取得的 Chrome 调试权限仍然存在。</p>
+    </section>
+<p class="hint">控制范围仅限当前授权标签页。到达黑名单或超出所选模式范围会停止控制；你也可以随时停止。</p></section>
   <section class="activity"><div class="section-title"><h2>最近操作</h2><span id="count"></span></div><ul id="events"><li class="empty">尚无控制操作</li></ul></section>
   <p id="error" class="error" role="alert" hidden></p>
 </main>
+<section class="control-actions" aria-label="授权与停止"><button id="apply" class="primary" hidden>应用设置并重新授权</button>
+    <button id="grant" class="primary" disabled>允许控制此标签页</button><button id="stop" class="danger" hidden>停止控制此标签页</button></section>
 <footer><span>只控制你授权的标签页</span><button id="stop-all" class="link" disabled>全部停止</button></footer>
 </body></html>

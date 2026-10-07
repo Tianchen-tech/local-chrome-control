@@ -1,5 +1,6 @@
 import { Controller } from './controller.mjs';
 import { BrowserAdapter } from './browser-adapter.mjs';
+import { createPolicy } from './policy.mjs';
 import { HOST_NAME, METHODS, VERSION, WIRE_VERSION, errorObject, webOrigin } from './protocol.mjs';
 const adapter = new BrowserAdapter(chrome);
 const controller = new Controller(adapter, {
@@ -59,7 +60,8 @@ function connect() {
     void badge();
   }
 }
-chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === 'bridge-reconnect') connect(); });
+chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === 'bridge-reconnect') connect(); if (alarm.name === 'scope-expiry') void controller.list().then(badge); });
+void chrome.alarms.create('scope-expiry', { periodInMinutes: 0.5 });
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(() => { connect(); void badge(); });
 chrome.tabs.onRemoved.addListener(id => { void controller.revoke(id, 'TAB_CLOSED').then(badge); });
@@ -68,6 +70,7 @@ chrome.tabs.onUpdated.addListener((id, change) => {
   else if (change.status === 'loading') adapter.forget(id);
 });
 chrome.debugger.onDetach.addListener(source => {
+  if (source.sessionId) return;
   // Chrome's Stop debugging button and DevTools revoke grants; never auto-reattach.
   void controller.revoke(source.tabId, 'DEBUGGER_DETACHED').then(badge);
 });
@@ -79,14 +82,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       let allowed = false;
       try { allowed = Boolean(tab && webOrigin(tab.url)); } catch {}
-      return { connected, session_id: sessionId, connection_error: lastError, version: VERSION,
+      const preferences = (await chrome.storage.local.get('controlPreferences')).controlPreferences || {};
+      return { connected, session_id: sessionId, connection_error: lastError, version: VERSION, preferences,
         current: tab ? { id: tab.id, title: tab.title || '', url: allowed ? new URL(tab.url).origin : '', allowed } : null,
-        grants: await controller.list(), pending_tab_ids: [...controller.pendingGrants.keys()], recent: controller.recent.slice(0, 5) };
+        grants: await controller.list(), pending_tab_ids: [...new Set([...controller.pendingGrants.keys(), ...controller.reconfiguring])], recent: controller.recent.slice(0, 5) };
     }
-    if (message.type === 'popup-grant') {
+    if (message.type === 'popup-grant' || message.type === 'popup-apply') {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab) throw new Error('No active tab');
-      await controller.grant(tab); await badge(); return { ok: true };
+      const selected = createPolicy(webOrigin(tab.url), message.options);
+      if (message.type === 'popup-apply') await controller.reconfigure(tab, message.options);
+      else await controller.grant(tab, message.options);
+      const applied = controller.grants.get(tab.id)?.policy || selected;
+      const previous = (await chrome.storage.local.get('controlPreferences')).controlPreferences || {};
+      await chrome.storage.local.set({ controlPreferences: { mode: applied.mode, minutes: applied.minutes,
+        blocked_sites: applied.mode === 'extended' ? applied.blocked_sites : previous.blocked_sites || [] } });
+      await badge(); return { ok: true };
     }
     if (message.type === 'popup-revoke') {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

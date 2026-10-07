@@ -28,3 +28,16 @@ li.empty { color: #93a1a6; font-size: 11px; border: 0; padding: 14px 0; }
 .error { color: #a23f2c; background: #fff0eb; padding: 10px; font-size: 12px; line-height: 1.6; border-radius: 8px; }
 footer { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px 18px; color: #829398; font-size: 10px; }
 [hidden] { display: none !important; }
+
+.scope { margin:16px 0; border-top:1px solid #e3e9ec; padding-top:12px; }
+.scope label { display:block; font-size:12px; color:#3b5360; margin:8px 0 4px; }
+.scope select,.scope textarea { width:100%; box-sizing:border-box; font:12px system-ui; padding:7px; border:1px solid #c9d9df; border-radius:7px; background:#fff; color:#213547; }
+.scope textarea { resize:vertical; }
+[hidden] { display:none !important; }
+#apply { margin-bottom:9px; }
+body { max-height:740px; display:flex; flex-direction:column; }
+header, footer { flex-shrink:0; }
+main { overflow-y:auto; min-height:0; }
+
+.control-actions { padding:10px 20px 0; flex-shrink:0; }
+.control-actions button { margin-bottom:6px; }

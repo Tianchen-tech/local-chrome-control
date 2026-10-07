@@ -1,3 +1,5 @@
+> This branch is a 0.3.0 Windows developer preview, with a fixed development public key. The checklist below is historical 0.1.1 Chrome Web Store preparation; it does not certify or publish this preview. Store identity binding and clean installation remain required for a future store release.
+
 # Chrome Web Store publication checklist — 0.1.1
 
 Approved choices: Tianchen Shen; world8866171@gmail.com; free extension; Public searchable listing; all supported distribution regions; GitHub repository and GitHub Pages for public documentation.

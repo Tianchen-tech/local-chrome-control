@@ -1,28 +1,36 @@
 import fs from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
-import { runtimeRoot } from './paths.mjs';
+import { runtimeRoot, privatePaths } from './paths.mjs';
+import { ipcEndpoint } from './platform.mjs';
 import { LineDecoder } from './framing.mjs';
-import { ControlError, METHODS, MUTATIONS } from '../extension/protocol.mjs';
+import { ControlError, METHODS, MUTATIONS, WIRE_VERSION } from '../extension/protocol.mjs';
 
 export async function discover() {
   const root = runtimeRoot();
   let files;
   try {
     const stat = await fs.lstat(root);
-    if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077)) return [];
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return [];
     files = await fs.readdir(root);
   } catch { return []; }
+  const names = files.filter(f => /^[a-f0-9]{12}\.json$/.test(f));
+  let permissions;
+  try { permissions = await privatePaths(root, names.map(f => path.join(root, f))); } catch { return []; }
+  if (!permissions.directory) return [];
+  const allowedFiles = new Set(permissions.files);
   const found = [];
-  for (const file of files.filter(f => /^[a-f0-9]{12}\.json$/.test(f))) {
+  for (const file of names) {
     try {
       const filename = path.join(root, file);
       const stat = await fs.lstat(filename);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077)) continue;
+      if (!stat.isFile() || stat.isSymbolicLink() || !allowedFiles.has(filename)) continue;
       const entry = JSON.parse(await fs.readFile(filename, 'utf8'));
-      if (entry.session_id !== file.slice(0, -5) || entry.socket_path !== path.join(root, entry.session_id + '.sock') || !/^[a-f0-9]{64}$/.test(entry.token)) continue;
-      const socketStat = await fs.lstat(entry.socket_path);
-      if (!socketStat.isSocket() || socketStat.uid !== process.getuid() || (socketStat.mode & 0o077)) continue;
+      if (entry.protocol !== WIRE_VERSION || entry.session_id !== file.slice(0, -5) || entry.socket_path !== ipcEndpoint(root, entry.session_id) || !/^[a-f0-9]{64}$/.test(entry.token) || !Number.isSafeInteger(entry.pid) || entry.pid <= 0) continue;
+      if (process.platform !== 'win32') {
+        const socketStat = await fs.lstat(entry.socket_path);
+        if (!socketStat.isSocket() || socketStat.uid !== process.getuid() || (socketStat.mode & 0o077)) continue;
+      }
       process.kill(entry.pid, 0);
       found.push(entry);
     } catch { /* A stale endpoint is ignored, never deleted or followed elsewhere. */ }
