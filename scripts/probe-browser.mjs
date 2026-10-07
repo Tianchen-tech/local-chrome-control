@@ -100,7 +100,7 @@ try {
   const origin = 'http://127.0.0.1:19320', policy = createPolicy(origin, { mode: 'extended' });
   if (process.argv.includes('--legacy-point-checks')) {
     const evaluate = adapter.evaluate.bind(adapter);
-    adapter.evaluate = (id, fn, args, deadline) => evaluate(id, fn, args[3] === 'measure-point' ? [...args.slice(0, 3), 'point', ...args.slice(4)] : args, deadline);
+    adapter.evaluate = (id, fn, args, deadline, awaitPromise) => evaluate(id, fn, args[3] === 'measure-point' ? [...args.slice(0, 3), 'point', ...args.slice(4)] : args, deadline, awaitPromise);
   }
   await adapter.attach(7);
   await send('Target.activateTarget', { targetId });

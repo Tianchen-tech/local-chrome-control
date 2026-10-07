@@ -253,3 +253,13 @@ export function focusedNode(expectedOrigin, snapshotId, ref) {
   if (el !== item.el) throw new Error('FOCUS_CHANGED');
   return el;
 }
+
+// DOM/layout reads can precede submission of the new scroll position to Chrome's
+// compositor. Give it two render opportunities before routing an OOP mouse hit.
+export function renderingReady(expectedOrigin) {
+  if (location.origin !== expectedOrigin) throw new Error('ORIGIN_CHANGED');
+  return new Promise((resolve, reject) => requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (location.origin !== expectedOrigin) reject(new Error('ORIGIN_CHANGED'));
+    else resolve(true);
+  })));
+}

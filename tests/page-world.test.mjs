@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { snapshotPage, prepareAction, focusedElement, scrollMetrics } from '../extension/page-world.mjs';
+import { snapshotPage, prepareAction, focusedElement, scrollMetrics, renderingReady } from '../extension/page-world.mjs';
 function page(body) {
   const dom = new JSDOM('<!doctype html><title>Fixture</title><body>' + body, { url: 'https://example.test/form', runScripts: 'outside-only' });
   const w = dom.window;
@@ -135,4 +135,17 @@ test('scroll metrics measure the page and reject stale refs', () => {
   assert.equal(p.scroll().container, 'page');
   assert.equal(p.scroll('snapshot-one', 'e1').container, 'page');
   assert.throws(() => p.scroll('old', 'e1'), /STALE_SNAPSHOT/); p.dom.window.close();
+});
+
+test('render synchronization rejects navigation to a different origin before input', async () => {
+  const p = page('<button>Submit</button>');
+  p.w.requestAnimationFrame = callback => queueMicrotask(callback);
+  const wait = () => p.w.eval('(' + renderingReady.toString() + ')(' + JSON.stringify('https://example.test') + ')');
+  try {
+    assert.equal(await wait(), true);
+    const pending = wait();
+    p.dom.reconfigure({ url: 'https://excluded.test/' });
+    await assert.rejects(pending, /ORIGIN_CHANGED/);
+    assert.throws(wait, /ORIGIN_CHANGED/);
+  } finally { p.w.close(); }
 });

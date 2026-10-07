@@ -1,6 +1,6 @@
 import { FrameRouter } from './frames.mjs';
 import { MAX_TEXT, MAX_NODES, MAX_SCREENSHOT_BASE64, ControlError, fail, deadlineCheck, keyDefinition } from './protocol.mjs';
-import { snapshotPage, prepareAction, viewportMetrics, focusedElement, scrollMetrics, focusedNode } from './page-world.mjs';
+import { snapshotPage, prepareAction, viewportMetrics, focusedElement, scrollMetrics, focusedNode, renderingReady } from './page-world.mjs';
 
 const PAGE_ERRORS = ['ORIGIN_CHANGED', 'STALE_SNAPSHOT', 'STALE_REF', 'ELEMENT_CHANGED', 'ELEMENT_DISABLED', 'ELEMENT_HIDDEN', 'ELEMENT_OBSCURED', 'UNSUPPORTED_INPUT', 'INVALID_OPTION', 'NOT_FOCUSABLE', 'FOCUS_CHANGED', 'SCROLL_TARGET_LOST', 'FRAME_TARGET_REQUIRED'];
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -77,10 +77,10 @@ export class BrowserAdapter {
     this.worlds.set(key, result.executionContextId);
     return result.executionContextId;
   }
-  async evaluate(id, fn, params, deadline) {
+  async evaluate(id, fn, params, deadline, awaitPromise = false) {
     const contextId = await this.world(id, deadline);
     const expression = '(' + fn.toString() + ')(' + params.map(p => JSON.stringify(p)).join(',') + ')';
-    const response = await this.cdp(id, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: false }, deadline);
+    const response = await this.cdp(id, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise }, deadline);
     if (response.exceptionDetails) {
       const description = response.exceptionDetails.exception?.description || '';
       const code = PAGE_ERRORS.find(c => description.includes(c));
@@ -138,6 +138,11 @@ export class BrowserAdapter {
     if (method === 'page_click') {
       const point = await this.prepare(id, args, origin, 'point', '', deadline, guard, progress);
       await guard();
+      if (route?.target.sessionId) {
+        const rootOrigin = this.frames.origin(route.trees.get(route.rootId).frame);
+        await this.evaluate(rootId, renderingReady, [rootOrigin], deadline, true);
+        await guard();
+      }
       // Check the element again after any asynchronous work, then use trusted CDP input events.
       const checked = await this.evaluate(id, prepareAction, [origin, args.snapshot_id, args.ref, 'measure-point', ''], deadline);
       if (Math.abs(point.x - checked.x) > 2 || Math.abs(point.y - checked.y) > 2) fail('ELEMENT_MOVED', '元素位置变化，请重新读取页面。');

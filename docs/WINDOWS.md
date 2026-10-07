@@ -1,6 +1,6 @@
 # Windows 预览版 0.3.0
 
-Windows 适配已通过 GitHub Actions 的 Windows 原生连接测试和真实隔离 Chrome 回归，Mac/Windows × Node 22.22.2/24 四组任务全部通过。Windows 每组 132 项测试通过；Mac 每组 129 项通过、3 项 Windows 专属测试跳过。[验证记录](WINDOWS-CI.md)给出环境、提交与结果链接。Windows 10/11 个人 Chrome 配置中的实际扩展加载、弹窗授权及 Native Messaging 完整连接仍需本机验收，本版以开发预览发布。
+Windows 适配已通过 GitHub Actions 的 Windows 原生连接测试和真实隔离 Chrome 回归，Mac/Windows × Node 22.22.2/24 四组任务全部通过。原生连接、权限与浏览器回归均有通过记录。当前测试集共 133 项，Mac 跳过 3 个 Windows 专属项。[验证记录](WINDOWS-CI.md)给出环境、提交与结果链接。Windows 10/11 个人 Chrome 配置中的实际扩展加载、弹窗授权及 Native Messaging 完整连接仍需本机验收，本版以开发预览发布。
 
 ## 环境与安装
 

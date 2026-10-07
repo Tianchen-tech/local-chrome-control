@@ -1,6 +1,6 @@
 # Windows 预览验证记录
 
-2026-10-07，运行代码提交 [064938f](https://github.com/Tianchen-tech/local-chrome-control/commit/064938f07e2593bca0a459e15f94c840804fd33c) 的 [GitHub Actions #37700309934](https://github.com/Tianchen-tech/local-chrome-control/actions/runs/37700309934) 四组任务全部成功。随后只更新了预览说明和插件描述；最终发布提交的工作流可在 PR 中查阅。
+2026-10-07，运行代码提交 [064938f](https://github.com/Tianchen-tech/local-chrome-control/commit/064938f07e2593bca0a459e15f94c840804fd33c) 的 [GitHub Actions #37700309934](https://github.com/Tianchen-tech/local-chrome-control/actions/runs/37700309934) 四组任务全部成功。这是首次全通过的基线。随后文档提交复跑揭示偶发跨框架点击竞态；最新版本补充绘制同步与来源变化拒绝测试，当前集共 133 项。最终发布提交的工作流可在 [PR #1](https://github.com/Tianchen-tech/local-chrome-control/pull/1)查阅。
 
 | 平台 | Node | 自动测试 | 真实隔离 Chrome 回归 |
 | --- | --- | --- | --- |
@@ -15,7 +15,7 @@ Windows 专项测试实际检查 NTFS 所有权/ACL与共享文件拒绝、HKCU 
 
 浏览器探针另开临时 Chrome 配置，只访问自有 loopback 合成页面。使用产品 BrowserAdapter，经真实 CDP 验证同源/跨进程 iframe 填写和点击（计数各为 1）、Controller 跨站跳转和租约连续使用、粘性菜单的可信 hover/down/up/click，以及导航后的标题。API 入口由测试适配层提供，不是完整扩展安装测试。探针激活自己的标签页，等待页面与框架就绪，再发出一次输入；只读观察不会重复输入，最后只关闭自己创建的浏览器。
 
-## 已修复的 CI 失败
+## CI 失败与修复记录
 
 失败记录保留在 Actions，不重写为成功结果：
 
@@ -24,6 +24,10 @@ Windows 专项测试实际检查 NTFS 所有权/ACL与共享文件拒绝、HKCU 
 - [指针诊断](https://github.com/Tianchen-tech/local-chrome-control/actions/runs/37699045125)：Windows 132 项测试通过；浏览器探针仍有启动读取和进程退出等待问题。
 - [就绪改进](https://github.com/Tianchen-tech/local-chrome-control/actions/runs/37699925724)：Mac 两组全部通过；Windows 暴露首次 PowerShell 10 秒冷启动和 Chrome 2 秒元数据读取超时。
 - [修复后通过](https://github.com/Tianchen-tech/local-chrome-control/actions/runs/37700309934)：系统模块明确加载；PowerShell 有界冷启动等待 30 秒；探针可在启动/导航期间再次读取，输入不重发。四组任务全部通过。
+
+- [文档提交复跑](https://github.com/Tianchen-tech/local-chrome-control/actions/runs/37700664525)：三个任务成功，Mac Node 24 的跨进程点击偶发落在外层 iframe。初始化激活和截图不足以覆盖后续滚动后的绘制竞态；最新版本在跨进程点击准备后等待外层两次 animation frame，再重新量位置与检查遮挡，随后只发出一次可信输入。等待沿用 8 秒动作截止时间，期间来源变化拒绝继续，后台标签页长期不绘制时会超时，不重发点击。最新提交的结果见 PR。
+
+绘制等待是对上述现象的修复，有限回归不能证明所有浏览器版本没有竞态。[HTML 的渲染与 animation frame 顺序](https://html.spec.whatwg.org/multipage/webappapis.html)及 [Puppeteer 的连续帧稳定检查](https://pptr.dev/guides/page-interactions)提供实现依据；没有引入 Puppeteer 运行依赖。
 
 ## 仍需本机试用
 
