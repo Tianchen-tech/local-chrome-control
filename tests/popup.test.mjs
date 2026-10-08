@@ -14,13 +14,18 @@ async function popup(onMessage = async () => ({ ok: true })) {
   w.chrome = { runtime: { sendMessage: async message => message.type === 'popup-status' ? state : onMessage(message, state) } };
   w.eval(script + '\nwindow.__refreshForTest = refresh;');
   await flush();
-  return { dom, state, el: id => w.document.getElementById(id), refresh: () => w.__refreshForTest() };
+  const choose = (name, value) => {
+    w.document.querySelector('input[name="' + name + '"][value="' + value + '"]').checked = true;
+    w.document.getElementById('settings').dispatchEvent(new w.Event('input', { bubbles: true }));
+  };
+  const selected = name => w.document.querySelector('input[name="' + name + '"]:checked').value;
+  return { dom, state, choose, selected, el: id => w.document.getElementById(id), refresh: () => w.__refreshForTest() };
 }
 test('mode selection survives polling and is sent only with the user grant click', async () => {
   const sent = [], p = await popup(async message => { sent.push(message); return { ok: true }; });
-  p.el('mode').value = 'extended'; p.el('mode').dispatchEvent(new p.dom.window.Event('input'));
+  p.choose('mode', 'extended');
   p.el('blocked-sites').value = 'example.net\nhttps://mail.example.org/inbox';
-  await p.refresh(); assert.equal(sent.length, 0); assert.equal(p.el('mode').value, 'extended');
+  await p.refresh(); assert.equal(sent.length, 0); assert.equal(p.selected('mode'), 'extended');
   p.el('grant').click(); await flush();
   assert.equal(sent[0].options.mode, 'extended'); assert.deepEqual(Array.from(sent[0].options.blocked_sites), ['example.net', 'https://mail.example.org/inbox']);
   assert.equal(Object.hasOwn(sent[0].options, 'origins'), false); p.dom.window.close();
@@ -28,7 +33,7 @@ test('mode selection survives polling and is sent only with the user grant click
 test('readonly hides exclusions and never transmits stale high-tier settings', async () => {
   const sent = [], p = await popup(async message => { sent.push(message); return { ok: true }; });
   p.el('blocked-sites').value = 'other.test';
-  p.el('mode').value = 'readonly'; p.el('mode').dispatchEvent(new p.dom.window.Event('input'));
+  p.choose('mode', 'readonly');
   assert.equal(p.el('extended-fields').hidden, true);
   p.el('grant').click(); await flush();
   assert.equal(sent[0].options.mode, 'readonly'); assert.equal(sent[0].options.blocked_sites.length, 0);
@@ -36,7 +41,7 @@ test('readonly hides exclusions and never transmits stale high-tier settings', a
 });
 test('extended tier grants with an empty blacklist without entering any URLs', async () => {
   const sent = [], p = await popup(async message => { sent.push(message); return { ok: true }; });
-  p.el('mode').value = 'extended'; p.el('mode').dispatchEvent(new p.dom.window.Event('input'));
+  p.choose('mode', 'extended');
   assert.equal(p.el('origins'), null); assert.equal(p.el('frame-origins'), null);
   p.el('grant').click(); await flush();
   assert.equal(sent[0].options.mode, 'extended'); assert.equal(sent[0].options.blocked_sites.length, 0);
@@ -46,8 +51,8 @@ test('remembered mode and exclusions prefill new tabs without automatically gran
   const sent = [], p = await popup(async message => { sent.push(message); return { ok: true }; });
   p.state.preferences = { mode: 'extended', minutes: 60, blocked_sites: ['example.net'] };
   p.state.current.id = 8; await p.refresh(); await p.refresh();
-  assert.equal(p.el('mode').value, 'extended'); assert.equal(p.el('blocked-sites').value, 'example.net');
-  assert.equal(p.el('minutes').value, '60'); assert.equal(p.el('permission').textContent, '尚未授权'); assert.equal(sent.length, 0);
+  assert.equal(p.selected('mode'), 'extended'); assert.equal(p.el('blocked-sites').value, 'example.net');
+  assert.equal(p.selected('minutes'), '60'); assert.equal(p.el('permission').textContent, '尚未授权'); assert.equal(sent.length, 0);
   p.state.grants = [{ tab_id: 8, mode: 'extended', blocked_sites: ['different.test'], authorization_minutes: 30, authorization_expires_at: Date.now() + 60000 }];
   await p.refresh(); assert.equal(p.el('blocked-sites').value, 'different.test');
   assert.match(p.el('scope-summary').textContent, /所有普通网站，排除 1 个域名/);
@@ -63,7 +68,8 @@ test('popup reports connection and control separately; stopping works without a 
   await p.refresh();
   assert.equal(p.el('status').textContent, '本地连接未就绪');
   assert.equal(p.el('connection-note').textContent, '本地连接已断开');
-  assert.equal(p.el('permission').textContent, '控制中 · Fixture task');
+  assert.equal(p.el('permission').textContent, '正在控制中');
+  assert.equal(p.el('state-detail').textContent, '任务：Fixture task');
   assert.equal(p.el('stop').hidden, false);
   assert.equal(p.el('stop').disabled, false);
   assert.equal(p.el('stop-all').disabled, false);
@@ -77,6 +83,7 @@ test('popup renders page titles and task names as plain text', async () => {
   await p.refresh();
   assert.equal(p.el('tab-title').children.length, 0);
   assert.equal(p.el('permission').children.length, 0);
+  assert.equal(p.el('state-detail').children.length, 0); assert.match(p.el('state-detail').textContent, /<script>/);
   assert.match(p.el('tab-title').textContent, /<img/);
   assert.match(p.el('events').textContent, /245 ms/);
   p.dom.window.close();
@@ -100,5 +107,24 @@ test('user can stop a grant that is still waiting for Chrome', async () => {
   p.el('stop-all').click(); await flush();
   assert.deepEqual(sent, ['popup-grant', 'popup-stop-all']);
   assert.equal(p.el('grant').hidden, false);
+  p.dom.window.close();
+});
+test('settings collapse once granted and reopen only on request', async () => {
+  const p = await popup();
+  assert.equal(p.el('settings').hidden, false);
+  p.state.grants = [{ tab_id: 7, mode: 'standard', allowed_origins: ['https://example.test'], authorization_minutes: 30, authorization_expires_at: Date.now() + 10 * 60000 }];
+  await p.refresh();
+  assert.equal(p.el('settings').hidden, true); assert.equal(p.el('apply').hidden, true); assert.equal(p.el('grant').hidden, true);
+  assert.match(p.el('expiry-text').textContent, /剩余 10 分钟/);
+  p.el('edit').click(); await flush(); await p.refresh();
+  assert.equal(p.el('settings').hidden, false); assert.equal(p.el('apply').hidden, false);
+  p.dom.window.close();
+});
+test('pages that cannot be controlled explain why and offer no grant', async () => {
+  const p = await popup();
+  p.state.current = { id: 9, title: '扩展程序', url: '', allowed: false };
+  await p.refresh();
+  assert.equal(p.el('permission').textContent, '此页面不支持控制');
+  assert.equal(p.el('settings').hidden, true); assert.equal(p.el('grant').disabled, true);
   p.dom.window.close();
 });

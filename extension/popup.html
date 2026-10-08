@@ -2,25 +2,109 @@
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>本地 Chrome 控制</title><link rel="stylesheet" href="popup.css"><script type="module" src="popup.mjs"></script></head>
-<body>
-<header><img src="icons/icon48.png" width="34" height="34" alt=""><div><h1>本地 Chrome 控制</h1><p>Local Chrome Control</p></div><span id="version" class="version">…</span></header>
+<body data-view="idle">
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path d="m4 4 7 17 2.5-7.5L21 11 4 4Z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-scroll" viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l2 2M15 8l2 2"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+</svg>
+
+<header>
+  <img src="icons/icon.svg" width="26" height="26" alt="">
+  <div class="brand"><h1>本地 Chrome 控制</h1><span id="version" class="version">…</span></div>
+  <div id="connection" class="connection" role="status">
+    <span id="dot" class="dot"></span><span id="status">检查连接…</span>
+    <button id="reconnect" class="icon-button" title="重新连接" aria-label="重新连接" hidden><svg><use href="#i-refresh"/></svg></button>
+  </div>
+</header>
+
 <main>
-  <section class="connection"><div class="status-line"><span id="dot" class="dot"></span><strong id="status">检查连接…</strong><button id="reconnect" class="link">重新连接</button></div><p id="connection-note">控制消息通过本机连接传递。</p><p id="session-id" class="session-id" hidden></p></section>
-  <section class="tab-card"><div class="eyebrow">当前标签页</div><h2 id="tab-title">正在读取…</h2><p id="tab-origin" class="origin"></p><div id="permission" class="permission">尚未授权</div>
-    <section class="scope" aria-label="控制模式">
-      <label for="mode">控制模式</label><select id="mode"><option value="readonly">只读 · 读取与截图</option><option value="standard" selected>标准 · 当前网站可读写</option><option value="extended">扩展 · 所有普通网站，排除黑名单</option></select>
-      <p id="mode-note" class="hint">标准模式仅控制当前网站，支持富文本、开放 Shadow DOM 和同源框架。</p>
-      <div id="extended-fields" hidden><label for="blocked-sites">不允许控制的网站（选填，每行一个域名）</label><textarea id="blocked-sites" rows="3" placeholder="example.com&#10;也可粘贴完整网址"></textarea>
-      <p class="hint">域名及其子域名、所有端口均排除，包括内嵌框架。留空即允许所有普通网站。设置会记住供下次授权使用；其他已授权标签页需分别应用修改。</p></div>
-      <label for="minutes">有效期</label><select id="minutes"><option value="15">15 分钟</option><option value="30" selected>30 分钟</option><option value="60">60 分钟</option><option value="120">120 分钟</option></select>
-      <p id="scope-summary" class="hint" hidden></p>
-      <p class="hint">只读限制插件动作；安装时取得的 Chrome 调试权限仍然存在。</p>
-    </section>
-<p class="hint">控制范围仅限当前授权标签页。到达黑名单或超出所选模式范围会停止控制；你也可以随时停止。</p></section>
-  <section class="activity"><div class="section-title"><h2>最近操作</h2><span id="count"></span></div><ul id="events"><li class="empty">尚无控制操作</li></ul></section>
-  <p id="error" class="error" role="alert" hidden></p>
+  <p id="connection-note" class="banner warn" hidden></p>
+
+  <section id="hero" class="hero" aria-live="polite">
+    <div class="site">
+      <span id="site-avatar" class="avatar" aria-hidden="true">·</span>
+      <div class="site-text"><h2 id="tab-title">正在读取…</h2><p id="tab-origin" class="origin"></p></div>
+    </div>
+    <div class="state">
+      <span class="state-icon" aria-hidden="true"><svg id="state-glyph"><use href="#i-lock"/></svg></span>
+      <div class="state-text"><strong id="permission">尚未授权</strong><p id="state-detail"></p></div>
+    </div>
+    <div id="grant-info" class="grant-info" hidden>
+      <p id="scope-summary" class="scope-summary" hidden></p>
+      <div id="expiry" class="expiry" hidden>
+        <div class="expiry-label"><svg><use href="#i-clock"/></svg><span id="expiry-text"></span></div>
+        <div class="meter"><span id="expiry-fill"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <button id="edit" class="ghost" hidden><svg><use href="#i-sliders"/></svg><span>调整权限</span></button>
+
+  <form id="settings" class="settings" aria-label="授权设置" hidden>
+    <fieldset class="modes">
+      <legend>允许 AI 做什么</legend>
+      <label class="mode-card"><input type="radio" name="mode" value="readonly">
+        <span class="mode-icon"><svg><use href="#i-eye"/></svg></span>
+        <span class="mode-text"><b>只读</b><small>读取页面和截图，不做任何操作</small></span></label>
+      <label class="mode-card"><input type="radio" name="mode" value="standard" checked>
+        <span class="mode-icon"><svg><use href="#i-cursor"/></svg></span>
+        <span class="mode-text"><b>标准 <em>推荐</em></b><small>在当前网站内点击、输入和滚动</small></span></label>
+      <label class="mode-card"><input type="radio" name="mode" value="extended">
+        <span class="mode-icon"><svg><use href="#i-globe"/></svg></span>
+        <span class="mode-text"><b>扩展</b><small>可在这个标签页里跨网站连续操作</small></span></label>
+    </fieldset>
+    <p id="mode-note" class="note"></p>
+
+    <div id="extended-fields" class="extended" hidden>
+      <label for="blocked-sites">不允许访问的网站 <span class="optional">选填</span></label>
+      <textarea id="blocked-sites" rows="3" placeholder="每行一个，例如&#10;bank.example.com" spellcheck="false"></textarea>
+      <p class="note">同时排除子域名和内嵌框架。留空表示允许所有普通网站。</p>
+    </div>
+
+    <fieldset class="durations">
+      <legend>授权时长</legend>
+      <div class="chips">
+        <label><input type="radio" name="minutes" value="15"><span>15 分钟</span></label>
+        <label><input type="radio" name="minutes" value="30" checked><span>30 分钟</span></label>
+        <label><input type="radio" name="minutes" value="60"><span>1 小时</span></label>
+        <label><input type="radio" name="minutes" value="120"><span>2 小时</span></label>
+      </div>
+    </fieldset>
+  </form>
+
+  <p id="error" class="banner danger-banner" role="alert" hidden></p>
+
+  <section class="activity">
+    <div class="section-title"><h3>最近操作</h3></div>
+    <ul id="events"><li class="empty">还没有操作记录</li></ul>
+  </section>
 </main>
-<section class="control-actions" aria-label="授权与停止"><button id="apply" class="primary" hidden>应用设置并重新授权</button>
-    <button id="grant" class="primary" disabled>允许控制此标签页</button><button id="stop" class="danger" hidden>停止控制此标签页</button></section>
-<footer><span>只控制你授权的标签页</span><button id="stop-all" class="link" disabled>全部停止</button></footer>
+
+<!-- Pinned so the grant and stop buttons never scroll out of reach. -->
+<div id="actions" class="actions">
+  <button id="grant" class="primary" disabled><svg><use href="#i-shield"/></svg><span>允许控制此标签页</span></button>
+  <button id="apply" class="primary" hidden><svg><use href="#i-refresh"/></svg><span>应用并重新授权</span></button>
+  <button id="stop" class="danger" hidden><svg><use href="#i-stop"/></svg><span>停止控制</span></button>
+  <p id="trust" class="trust"><svg><use href="#i-lock"/></svg>只作用于这个标签页，随时可以停止</p>
+</div>
+
+<footer>
+  <span id="count">0 个标签页已授权</span>
+  <span id="session-id" class="session-id" hidden></span>
+  <button id="stop-all" class="link" disabled>全部停止</button>
+</footer>
 </body></html>
