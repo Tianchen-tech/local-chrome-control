@@ -1,4 +1,4 @@
-> This branch is a 0.3.0 Windows developer preview, with a fixed development public key. The checklist below is historical 0.1.1 Chrome Web Store preparation; it does not certify or publish this preview. Store identity binding and clean installation remain required for a future store release.
+> This is the 0.3.1 developer preview (macOS and Windows), with a fixed development public key. The checklist below is historical 0.1.1 Chrome Web Store preparation; it does not certify or publish this preview. Store identity binding and clean installation remain required for a future store release.
 
 # Chrome Web Store publication checklist — 0.1.1
 

@@ -1,16 +1,18 @@
-## 0.3.0 Windows 适配预览
+## 0.3.1 预览：新弹窗、新图标与 Windows 支持
 
-此分支供解压加载测试，使用固定开发公钥产生测试扩展 ID；不代表商店条目已绑定或发布。原 0.1.1 商店准备资料保留在 main 分支，正式商店身份仍须单独绑定验收。
+0.3.1 把 Windows 适配与重新设计的扩展弹窗、图标合并为同一版本，见 [发布说明](docs/RELEASE-0.3.1.md)。弹窗以当前标签页状态为中心：授权状态与剩余时间一目了然，模式用卡片选择，授权后设置自动收起，停止按钮始终可见，并支持深色模式。
+
+此版本供解压加载测试，使用固定开发公钥产生测试扩展 ID；不代表商店条目已绑定或发布。历史 0.1.1 商店准备资料见 RELEASE.md，正式商店身份仍须单独绑定验收。
 
 提供只读、标准、扩展三档控制模式，以及富文本输入、菜单角色、开放 Shadow DOM 和 iframe。最高档默认允许当前授权标签页访问所有普通网站和跨源框架，可选填域名黑名单；无需填写网址白名单。黑名单会记住供下次授权使用，不自动授予标签页访问。最低 Chrome 125。正式网站兼容性仍需验收。[使用与验收说明](docs/CONTROL-MODES-0.2.1.md)。
 
 0.2.3 修复了滚动页面中的跨进程 iframe 命中检查、完整鼠标事件顺序、粘性导航反复滚动和跨站标题恢复，见 [修复记录](docs/FIXES-0.2.3.md)。
 
-Windows 本机连接与隔离 Chrome 回归已通过 Mac/Windows × Node 22/24 的四组 CI。个人 Chrome 的扩展加载与授权连接仍需本机验收。下载 [0.3.0 预览 ZIP](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.0-windows-preview.1)，按 [Windows 安装与验收](docs/WINDOWS.md)试用；[CI 记录](docs/WINDOWS-CI.md)列出验证边界。
+Windows 本机连接与隔离 Chrome 回归已通过 Mac/Windows × Node 22/24 的四组 CI，个人配置验收范围见 [CI 记录](docs/WINDOWS-CI.md)。下载 [0.3.1 预览](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.1)，按 [Windows 安装与验收](docs/WINDOWS.md)试用。
 
 # 本地 Chrome 控制
 
-Windows 测试预览版 0.3.0，面向 macOS 与 Windows 10/11，最低 Chrome 125。Windows 自动验证环境为 Windows Server 2025；Windows 10/11 个人配置验收待完成。读取页面、点击、填表、选择下拉选项和截图，通过独立的本机连接程序接入 Codex。
+测试预览版 0.3.1，面向 macOS 与 Windows 10/11，最低 Chrome 125。Windows 自动验证环境为 Windows Server 2025；Windows 10/11 个人配置验收待完成。读取页面、点击、填表、选择下拉选项和截图，通过独立的本机连接程序接入 Codex。
 
 历史版本 0.1.1 的 74 项开发测试通过，并完成部分真实 Chrome 基础操作验收，这些历史结果可参照 main 分支的 0.1.1 发布准备。这些历史结果不等于新控制模式和所有复杂网站已验收。当前版本的实测状态见本分支 GitHub Actions 与 docs/WINDOWS.md。
 

@@ -20,7 +20,7 @@ Use this plugin only when the user chooses **Local Chrome Control / 本地 Chrom
 
 The popup's Stop button, Chrome's Stop debugging action, closed tabs, authorization expiry, and navigation outside the selected scope or to an excluded domain revoke control. A user stop must never trigger automatic reattachment. Re-authorize through the popup only when the user wants to continue.
 
-Version 0.3.0 supports explicit control modes, open Shadow DOM and frames within the selected scope; no password entry, arbitrary JavaScript, cookie/history/storage access, file upload, browser-internal pages or navigation outside the selected scope or to an excluded domain. Do not bypass CAPTCHAs, sign-in, browser warnings or access controls. Screenshots can include private visible page content; use them only within the user's task.
+Version 0.3.1 supports explicit control modes, open Shadow DOM and frames within the selected scope; no password entry, arbitrary JavaScript, cookie/history/storage access, file upload, browser-internal pages or navigation outside the selected scope or to an excluded domain. Do not bypass CAPTCHAs, sign-in, browser warnings or access controls. Screenshots can include private visible page content; use them only within the user's task.
 
 Connection diagnostics: status shows bounded operation durations and error codes. The doctor script checks the native host without changing configuration. The extension/native-host link is local; Codex model calls and websites still require network access.
 

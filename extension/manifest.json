@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "本地 Chrome 控制 · Local Chrome Control",
   "short_name": "Local Chrome",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "minimum_chrome_version": "125",
   "description": "只控制你手动授权的标签页。支持本地连接、页面读取、填表、点击及截图。",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsM72siC3o7eeSXzWjpt8f0xMofjOF2u27yjWwSrGhpl02XLV0PtHfN6P47GD+7hqPfHWnB2+bMIbFmxRWmPpcKesZL+zZVbLecFsZ1wDWUfUs5+I2q3ezEui0yGZT00pmboV3Cqgh5fXj8JzF82/tLrOI2j/knRxm7C4wsr7K5LgKwzTm9SorjCmAu9HnTVmSGjAzd/NSvLNXKLdpnYG7pJzMjQrnmrhFTrNa4EkdhQXaSS1rtCc4n/6qBMo6pOqOG9m7PRcRjZzzMQZVMLkZK4HGzqo7SlrFvovrcoceIKX2OAmHPTposS3QbLfh/4gImVgNiGIlVyRb3DgoMxFSwIDAQAB",

@@ -1,12 +1,12 @@
-# Windows 预览版 0.3.0
+# Windows 预览版 0.3.1
 
-原发布基线已通过 Mac/Windows × Node 22.22.2/24 四组 GitHub Actions。当前分支增加 Windows 可重复 ACL 设置、无控制台的可执行启动器和具体连接错误提示，测试集共 136 项。Windows 11 个人 Chrome 已完成扩展加载、手动标准模式授权及 MCP 到页面的实际控制验收。[验证记录](WINDOWS-CI.md)区分发布基线、本机验证和仍未覆盖的范围。本版仍为开发预览。
+原发布基线已通过 Mac/Windows × Node 22.22.2/24 四组 GitHub Actions。当前分支增加 Windows 可重复 ACL 设置、无控制台的可执行启动器和具体连接错误提示；0.3.1 另重新设计了扩展弹窗与图标，测试集共 138 项。Windows 11 个人 Chrome 已完成扩展加载、手动标准模式授权及 MCP 到页面的实际控制验收。[验证记录](WINDOWS-CI.md)区分发布基线、本机验证和仍未覆盖的范围。本版仍为开发预览。
 
 ## 环境与安装
 
 面向 Windows 10/11、NTFS 本地磁盘、Google Chrome 125+、[Node.js](https://nodejs.org/en/download) 22.22.2 或更新版本。安装使用 Windows PowerShell 5.1 和系统 .NET Framework 4 的 C# 编译器，生成本机 native-host.exe；运行时不需要启动批处理中的 chcp。无需管理员权限，不修改执行策略、系统代理或浏览器安全参数。组织策略禁用本机主机或所需系统程序时，应由组织管理员按正常流程处理。
 
-本次修复位于 [codex/windows-support 分支源码 ZIP](https://github.com/Tianchen-tech/local-chrome-control/archive/refs/heads/codex/windows-support.zip)。[原预览发布页](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.0-windows-preview.1)的 ZIP 和校验值保持原样，不包含后续修复。将源码解压到稳定的本地目录，例如 C:\Users\你的用户名\plugins\local-chrome-control，在含 package.json 的目录打开 PowerShell。测试覆盖含中文、空格、百分号、感叹号与 & 的源码路径。不要放在网络共享，不要在安装后移动目录。Windows 本机运行目录（默认 %LOCALAPPDATA%\LocalChromeControl）不能含 cmd 控制字符，如 %、!、&，因为 Chrome 也可能经 cmd 启动可执行主机。特殊用户名导致默认路径不合要求时，需将 LOCAL_CHROME_CONTROL_DIR 设为当前用户拥有的普通本地目录，并在 Chrome 与 MCP 的启动环境中一致设置；不要绕过检查。
+请使用 [v0.3.1 发布页](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.1)的源码 ZIP，它包含上述修复。[原 0.3.0 预览发布页](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.0-windows-preview.1)的 ZIP 和校验值保持原样，不包含后续修复。将源码解压到稳定的本地目录，例如 C:\Users\你的用户名\plugins\local-chrome-control，在含 package.json 的目录打开 PowerShell。测试覆盖含中文、空格、百分号、感叹号与 & 的源码路径。不要放在网络共享，不要在安装后移动目录。Windows 本机运行目录（默认 %LOCALAPPDATA%\LocalChromeControl）不能含 cmd 控制字符，如 %、!、&，因为 Chrome 也可能经 cmd 启动可执行主机。特殊用户名导致默认路径不合要求时，需将 LOCAL_CHROME_CONTROL_DIR 设为当前用户拥有的普通本地目录，并在 Chrome 与 MCP 的启动环境中一致设置；不要绕过检查。
 
 在该目录打开 PowerShell，先预览：
 

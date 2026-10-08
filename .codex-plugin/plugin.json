@@ -1,6 +1,6 @@
 {
   "name": "local-chrome-control",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local Chrome control with readonly, standard and extended scopes; extended allows ordinary websites except excluded domains. Windows native-host and isolated Chrome regression passed in CI; personal-profile Windows installation requires manual verification.",
   "author": {
     "name": "Tianchen Shen"
@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "本地 Chrome 控制",
     "shortDescription": "三档控制、跨站连续操作、网站黑名单。",
-    "longDescription": "通过本机连接提供三档控制、固定授权有效期、任务独占和写入去重。扩展模式默认允许当前授权标签页访问普通网站和跨源框架，用户可设置域名黑名单。支持富文本及开放 Shadow DOM；正式网站兼容性需分别验收。只读限制运行时动作，Chrome 调试权限仍在安装包中。 0.3.0 的 Windows 本机连接与隔离 Chrome 回归已通过 CI，个人 Chrome 的扩展加载及授权连接仍需本机验收。",
+    "longDescription": "通过本机连接提供三档控制、固定授权有效期、任务独占和写入去重。扩展模式默认允许当前授权标签页访问普通网站和跨源框架，用户可设置域名黑名单。支持富文本及开放 Shadow DOM；正式网站兼容性需分别验收。只读限制运行时动作，Chrome 调试权限仍在安装包中。 0.3.1 整合 Windows 本机连接并重新设计了弹窗和图标；Windows 回归已通过 CI，个人配置验收范围见 docs/WINDOWS-CI.md。",
     "developerName": "Tianchen Shen",
     "category": "Productivity",
     "capabilities": [

@@ -1,4 +1,4 @@
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 export const WIRE_VERSION = 1;
 export const HOST_NAME = 'com.localchrome.control';
 export const LEASE_MS = 10 * 60 * 1000;
