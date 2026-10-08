@@ -1,0 +1,10 @@
+{
+  "version": "0.3.1",
+  "item_id": "mppejcndepnklbbjjjdgbobmjfhhddfe",
+  "native_host": "com.localchrome.control",
+  "origin": "chrome-extension://mppejcndepnklbbjjjdgbobmjfhhddfe/",
+  "source_baseline": "69965e61019be9573fb0046e38e22d5f079441c1",
+  "release_tag": "v0.3.1-store.1",
+  "companion_asset": "local-chrome-control-0.3.1-store-companion.zip",
+  "store_state": "draft saved per publisher; not submitted or published"
+}

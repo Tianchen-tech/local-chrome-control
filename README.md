@@ -1,8 +1,12 @@
+## Chrome 商店发布准备
+
+商店草稿已由发布者保存，条目 ID 为 `mppejcndepnklbbjjjdgbobmjfhhddfe`；尚未送审或上架。[商店身份配套候选](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.1-store.1)在独立分支绑定，不改变 main 的开发身份。[安装与支持](https://tianchen-tech.github.io/local-chrome-control/setup.html) · [隐私政策](https://tianchen-tech.github.io/local-chrome-control/privacy.html) · [审核验收说明](docs/REVIEWER.md)。
+
 ## 0.3.1 预览：新弹窗、新图标与 Windows 支持
 
 0.3.1 把 Windows 适配与重新设计的扩展弹窗、图标合并为同一版本，见 [发布说明](docs/RELEASE-0.3.1.md)。弹窗以当前标签页状态为中心：授权状态与剩余时间一目了然，模式用卡片选择，授权后设置自动收起，停止按钮始终可见，并支持深色模式。
 
-此版本供解压加载测试，使用固定开发公钥产生测试扩展 ID；不代表商店条目已绑定或发布。历史 0.1.1 商店准备资料见 RELEASE.md，正式商店身份仍须单独绑定验收。
+此版本供解压加载测试，使用固定开发公钥产生测试扩展 ID；不代表商店条目已绑定或发布。历史 0.1.1 商店准备资料见 RELEASE.md，商店配套身份已经在独立分支绑定，实际商店下载安装仍须验收。
 
 提供只读、标准、扩展三档控制模式，以及富文本输入、菜单角色、开放 Shadow DOM 和 iframe。最高档默认允许当前授权标签页访问所有普通网站和跨源框架，可选填域名黑名单；无需填写网址白名单。黑名单会记住供下次授权使用，不自动授予标签页访问。最低 Chrome 125。正式网站兼容性仍需验收。[使用与验收说明](docs/CONTROL-MODES-0.2.1.md)。
 
