@@ -25,6 +25,7 @@ jobs:
       - run: npm test
       - run: npm run check
       - run: npm run install:preview
+      - run: node scripts/verify-store-install.mjs --on-disposable-ci
       - run: npm run package
       - run: npm run verify:browser
       - uses: actions/upload-artifact@v4

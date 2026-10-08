@@ -1,12 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { generateKeyPairSync } from 'node:crypto';
 import { PROJECT_ROOT, extensionId } from '../server/paths.mjs';
 import { VERSION } from '../extension/protocol.mjs';
 const manifestPath = path.join(PROJECT_ROOT, 'extension', 'manifest.json');
 let key;
 try { key = JSON.parse(await fs.readFile(manifestPath, 'utf8')).key; } catch {}
-if (!key) key = generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+if (!key) throw new Error('STORE_KEY_NOT_BOUND: bind the actual Chrome Web Store public key and item ID before installing this release copy.');
 const manifest = { manifest_version: 3, name: '本地 Chrome 控制 · Local Chrome Control', short_name: 'Local Chrome',
   version: VERSION, minimum_chrome_version: '125', description: '只控制你手动授权的标签页。支持本地连接、页面读取、填表、点击及截图。',
   key, permissions: ['activeTab', 'debugger', 'nativeMessaging', 'storage', 'alarms'],

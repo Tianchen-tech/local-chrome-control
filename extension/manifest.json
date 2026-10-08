@@ -5,7 +5,6 @@
   "version": "0.3.1",
   "minimum_chrome_version": "125",
   "description": "只控制你手动授权的标签页。支持本地连接、页面读取、填表、点击及截图。",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsM72siC3o7eeSXzWjpt8f0xMofjOF2u27yjWwSrGhpl02XLV0PtHfN6P47GD+7hqPfHWnB2+bMIbFmxRWmPpcKesZL+zZVbLecFsZ1wDWUfUs5+I2q3ezEui0yGZT00pmboV3Cqgh5fXj8JzF82/tLrOI2j/knRxm7C4wsr7K5LgKwzTm9SorjCmAu9HnTVmSGjAzd/NSvLNXKLdpnYG7pJzMjQrnmrhFTrNa4EkdhQXaSS1rtCc4n/6qBMo6pOqOG9m7PRcRjZzzMQZVMLkZK4HGzqo7SlrFvovrcoceIKX2OAmHPTposS3QbLfh/4gImVgNiGIlVyRb3DgoMxFSwIDAQAB",
   "permissions": [
     "activeTab",
     "debugger",
@@ -32,5 +31,6 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none';"
-  }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA00HDY9JHt35wz5FpaF8q6MzG/VzNFiXVOYSaNCV84LbgFNSF6jS+AuWeMN3qj1yjQjsec1VTeYEKAhG2OOuQt3rlH+a01uX+u1PZEd0PrRals2AODCDcDNNWngOzihZZ2SLFMPH3JcKg1Bs4s5MxBmX3nmExwRzf65b9+N6Y8SV9OxUVvvcLiV0fa3O0WPdpIY5i42rDVFGFM1R5Ipo37U9fM0tx7hL66G7tbnKjzYH+oicJfNoMqB+R12uZHERL+pm9NFYsLDMz994ZVX7XhSjl5q688HjLibGAPMBtnP0Zyn2ll/FJxRppozGTpIKBHbe2nZZIl07YdgERDZW2XwIDAQAB"
 }

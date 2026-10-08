@@ -6,7 +6,7 @@ import { sourceZip } from '../server/zip.mjs';
 import { VERSION } from '../extension/protocol.mjs';
 const output = path.join(PROJECT_ROOT, 'dist');
 await fs.mkdir(output, { recursive: true });
-const filename = path.join(output, 'local-chrome-control-' + VERSION + '.zip');
+const filename = path.join(output, 'local-chrome-control-' + VERSION + '-store-companion.zip');
 const sources = ['.codex-plugin', '.mcp.json', '.github', 'extension', 'server', 'scripts', 'skills', 'assets', 'docs', 'tests', 'README.md', 'package.json', 'package-lock.json', '.gitignore'];
 const files = [];
 async function collect(relative) {
