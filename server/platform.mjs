@@ -8,9 +8,9 @@ export function runtimeDirectory(platform = process.platform, env = process.env,
     paths.join(env.LOCALAPPDATA || paths.join(home, 'AppData', 'Local'), 'LocalChromeControl') :
     paths.join(home, 'Library', 'Application Support', 'LocalChromeControl'));
   if (!paths.isAbsolute(root) || (platform === 'win32' && !/^[a-z]:\\/i.test(root))) throw new Error('RUNTIME_DIRECTORY_MUST_BE_LOCAL_AND_ABSOLUTE');
-  // Chrome launches .cmd hosts through cmd.exe before our own quoting runs.
-  // Source paths are escaped inside the batch file; the manifest/launcher path
-  // itself must avoid cmd expansion and control characters.
+  // Chrome may launch even executable hosts through its legacy cmd.exe path.
+  // Source paths live in the executable, but the manifest/launcher path itself
+  // must still avoid cmd expansion and control characters.
   if (platform === 'win32' && /[%!&^()<>|"\r\n\0]/.test(root)) throw new Error('WINDOWS_RUNTIME_PATH_CONTAINS_CMD_METACHARACTERS');
   return paths.normalize(root);
 }
@@ -29,7 +29,7 @@ export function installPlan({ platform = process.platform, home = homedir(), env
   const paths = platform === 'win32' ? path.win32 : path.posix;
   root ||= runtimeDirectory(platform, env, home);
   const directory = platform === 'win32' ? paths.join(root, 'NativeMessagingHosts') : paths.join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts');
-  const launcher = paths.join(root, platform === 'win32' ? 'native-host.cmd' : 'native-host.sh');
+  const launcher = paths.join(root, platform === 'win32' ? 'native-host.exe' : 'native-host.sh');
   const manifestPath = paths.join(directory, host + '.json');
   return { platform, directory, manifestPath, launcherPath: launcher,
     registryKey: platform === 'win32' ? 'Software\\Google\\Chrome\\NativeMessagingHosts\\' + host : null,

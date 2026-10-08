@@ -30,7 +30,7 @@ test('Windows install plan keeps the extension identity and uses a user registry
   const plan = installPlan(settings);
   assert.equal(plan.registryKey, 'Software\\Google\\Chrome\\NativeMessagingHosts\\com.localchrome.control');
   assert.equal(plan.manifest.type, 'stdio'); assert.deepEqual(plan.manifest.allowed_origins, [settings.origin]);
-  assert.ok(plan.launcherPath.endsWith('native-host.cmd'));
+  assert.ok(plan.launcherPath.endsWith('native-host.exe'));
   assert.equal(plan.mcp.args[0], settings.project + '\\server\\mcp.mjs');
   assert.equal(ownsManifest(plan.manifest, plan.manifest), true);
   assert.equal(ownsManifest({ ...plan.manifest, path: plan.manifest.path.toUpperCase() }, plan.manifest), true);

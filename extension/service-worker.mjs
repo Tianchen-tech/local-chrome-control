@@ -45,7 +45,13 @@ function connect() {
       if (port !== currentPort) return;
       port = null; connected = false; sessionId = null;
       const missing = /not found|not registered/i.test(raw);
-      lastError = missing ? '未安装本地连接程序。请按安装说明完成设置，然后重新连接。' : '本地连接已断开，正在等待重连。';
+      const reason = missing ? 'Chrome 未找到已登记主机（HOST_NOT_FOUND）。' :
+        /forbidden|access.*denied/i.test(raw) ? 'Chrome 禁止访问本机主机（HOST_FORBIDDEN）。' :
+        /failed to start/i.test(raw) ? 'Chrome 无法启动本机主机（HOST_START_FAILED）。' :
+        /host has exited/i.test(raw) ? '本机主机启动后退出（HOST_EXITED）。' :
+        /communicat/i.test(raw) ? '本机消息协议错误（HOST_PROTOCOL_ERROR）。' : '本机连接断开（HOST_DISCONNECTED）。';
+      lastError = reason + (missing ? ' 请检查安装后重新连接。' : ' 正在等待重连。');
+      console.error('Local Chrome Control: ' + reason);
       void badge();
       if (!missing) {
         retryCount++;

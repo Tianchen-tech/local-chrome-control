@@ -1,12 +1,12 @@
 # Windows 预览版 0.3.0
 
-Windows 适配已通过 GitHub Actions 的 Windows 原生连接测试和真实隔离 Chrome 回归，Mac/Windows × Node 22.22.2/24 四组任务全部通过。原生连接、权限与浏览器回归均有通过记录。当前测试集共 133 项，Mac 跳过 3 个 Windows 专属项。[验证记录](WINDOWS-CI.md)给出环境、提交与结果链接。Windows 10/11 个人 Chrome 配置中的实际扩展加载、弹窗授权及 Native Messaging 完整连接仍需本机验收，本版以开发预览发布。
+原发布基线已通过 Mac/Windows × Node 22.22.2/24 四组 GitHub Actions。当前分支增加 Windows 可重复 ACL 设置、无控制台的可执行启动器和具体连接错误提示，测试集共 136 项。Windows 11 个人 Chrome 已完成扩展加载、手动标准模式授权及 MCP 到页面的实际控制验收。[验证记录](WINDOWS-CI.md)区分发布基线、本机验证和仍未覆盖的范围。本版仍为开发预览。
 
 ## 环境与安装
 
-面向 Windows 10/11、NTFS 本地磁盘、Google Chrome 125+、[Node.js](https://nodejs.org/en/download) 22.22.2 或更新版本。安装流程使用系统自带 Windows PowerShell 5.1 与 cmd.exe。无需管理员权限，不修改执行策略、系统代理或浏览器安全参数。组织策略禁用本机主机、PowerShell 或 cmd.exe 时，应由组织管理员按正常流程处理。
+面向 Windows 10/11、NTFS 本地磁盘、Google Chrome 125+、[Node.js](https://nodejs.org/en/download) 22.22.2 或更新版本。安装使用 Windows PowerShell 5.1 和系统 .NET Framework 4 的 C# 编译器，生成本机 native-host.exe；运行时不需要启动批处理中的 chcp。无需管理员权限，不修改执行策略、系统代理或浏览器安全参数。组织策略禁用本机主机或所需系统程序时，应由组织管理员按正常流程处理。
 
-从 [GitHub 预览发布页](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.0-windows-preview.1)下载 local-chrome-control-0.3.0.zip 与对应 .sha256。将 ZIP 解压到稳定的本地目录，例如 C:\Users\你的用户名\plugins\local-chrome-control，在含 package.json 的目录打开 PowerShell。CI 已实际验证含中文、空格、百分号、感叹号与 & 的源码路径经批处理启动。不要放在网络共享，不要在安装后移动目录。Windows 本机运行目录（默认 %LOCALAPPDATA%\LocalChromeControl）不能含 cmd 控制字符，如 %、!、&；这是 Chrome 先经 cmd 启动 .cmd 的边界。特殊用户名导致默认路径不合要求时，需将 LOCAL_CHROME_CONTROL_DIR 设为当前用户拥有的普通本地目录，并在 Chrome 与 MCP 的启动环境中一致设置；不要绕过检查。
+本次修复位于 [codex/windows-support 分支源码 ZIP](https://github.com/Tianchen-tech/local-chrome-control/archive/refs/heads/codex/windows-support.zip)。[原预览发布页](https://github.com/Tianchen-tech/local-chrome-control/releases/tag/v0.3.0-windows-preview.1)的 ZIP 和校验值保持原样，不包含后续修复。将源码解压到稳定的本地目录，例如 C:\Users\你的用户名\plugins\local-chrome-control，在含 package.json 的目录打开 PowerShell。测试覆盖含中文、空格、百分号、感叹号与 & 的源码路径。不要放在网络共享，不要在安装后移动目录。Windows 本机运行目录（默认 %LOCALAPPDATA%\LocalChromeControl）不能含 cmd 控制字符，如 %、!、&，因为 Chrome 也可能经 cmd 启动可执行主机。特殊用户名导致默认路径不合要求时，需将 LOCAL_CHROME_CONTROL_DIR 设为当前用户拥有的普通本地目录，并在 Chrome 与 MCP 的启动环境中一致设置；不要绕过检查。
 
 在该目录打开 PowerShell，先预览：
 
@@ -33,13 +33,21 @@ Windows 的链路是 MCP → 命名管道 → Native Messaging → 手动授权�
 
 文件位于 %LOCALAPPDATA%\LocalChromeControl：
 
-- native-host.cmd：原生主机启动脚本。
+- native-host.exe 与 native-host.exe.cs：本机编译的二进制转发启动器及其源文件。
 - NativeMessagingHosts\com.localchrome.control.json：Chrome 主机清单。
 - 十二位连接 ID 的 .json 文件：当前连接描述与认证密钥，不可公开分享。
 
 系统 Windows PowerShell Security 模块按绝对系统路径加载，避免继承 PowerShell 7 模块路径而加载错误版本；首次安全检查允许最多 30 秒冷启动等待，超时仍拒绝连接。运行目录和密钥文件设置为当前用户与 SYSTEM 可访问的 NTFS ACL；读取连接前检查所有权与 ACL。拒绝重新解析点、网络共享和权限异常的描述文件。不依赖 Windows 中不存在的 process.getuid，也不把 Unix chmod 当作 Windows 访问控制。
 
 注册表只登记当前用户 HKCU\Software\Google\Chrome\NativeMessagingHosts\com.localchrome.control，兼顾 32/64 位注册表视图，不写 HKLM。主机由 Chrome 按需启动，没有开机服务。正常断线删除连接描述，Windows 内核释放命名管道；异常进程退出后的旧描述被忽略，不据此自动重放写操作。
+
+旧版本升级仅在清单及 native-host.cmd 内容都匹配当前 Node 和项目路径时自动迁移。旧批处理文件保留但不再登记。先在扩展弹窗停止控制并退出 Chrome，再更新安装目录，以便替换正在使用的可执行文件。
+
+## 连接错误排查
+
+弹窗现在区分 HOST_NOT_FOUND、HOST_FORBIDDEN、HOST_START_FAILED、HOST_EXITED 和 HOST_PROTOCOL_ERROR。先运行 doctor 检查登记和扩展 ID。安装后重新加载扩展；仍显示 HOST_NOT_FOUND 时，从 Chrome 菜单选择“退出”，确认后台进程结束，再重新启动并点“重新连接”。本机试用在完整重启 Chrome 后恢复连接，先前失败进程没有日志，未确认其确切根因。
+
+如果仍失败，按照 [Chrome Native Messaging 调试说明](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging#debug-native-messaging)，在 Chrome 完全退出后以 `chrome.exe --enable-logging --log-level=1` 启动，检查日志里的主机清单查找、读取及程序路径错误。日志可能包含其他浏览器信息，分享前只保留相关诊断行。组织策略拒绝访问时不要改用其他身份或放宽运行目录 ACL。
 
 ## 验收与撤销
 
@@ -60,7 +68,7 @@ npm run check
 npm run verify:browser
 ```
 
-Windows 专属测试在 Windows 才执行：实际 NTFS ACL 隔离；两种注册表视图的安装、冲突保护与撤销；Chrome 形状的 origin/parent-window 参数经批处理启动主机并保留二进制 stdio。它们只用独立临时目录与专用测试注册表 key，不覆盖已安装主机。verify:browser 另建临时 Chrome 配置访问自有 loopback 页面，不控制个人 Chrome 配置。
+Windows 专属测试在 Windows 才执行：实际 NTFS ACL 隔离与重复设置；两种注册表视图的安装、冲突保护与撤销；保留旧批处理回归；可执行主机的普通和无控制台后台启动、origin/parent-window 参数及包含 LF 长度字节的二进制 stdio。它们只用独立临时目录与专用测试注册表 key，不覆盖已安装主机。verify:browser 另建临时 Chrome 配置访问自有 loopback 页面，不控制个人 Chrome 配置。
 
 .github/workflows/windows-compatibility.yml 已在公开仓库运行并通过四组测试，详见 [CI 验证记录](WINDOWS-CI.md)。完整 Windows 验收仍需上述本机浏览器步骤。传输测试在真实 Windows 命名管道与主机之间模拟 Chrome 消息；浏览器探针使用真实 Chrome 与产品 BrowserAdapter，但调试 API 的入口由测试适配层提供。这两层自动测试不能代替 Chrome 实际加载扩展并启动已登记主机的完整验收。
 
@@ -70,10 +78,10 @@ Windows 专属测试在 Windows 才执行：实际 NTFS ACL 隔离；两种注�
 node .\scripts\windows-setup.mjs --uninstall
 ```
 
-只移除本项目的两种注册表视图登记、主机清单和启动脚本，拒绝删除指向无关清单的同名登记。先在扩展弹窗正常停止连接，再卸载；扩展和 MCP 项在各自管理界面移除。不要删除其他扩展或修改安全策略。
+只移除本项目的两种注册表视图登记、主机清单、可执行启动器及其源文件，拒绝删除指向无关清单的同名登记。先在扩展弹窗停止连接并退出 Chrome，再卸载；扩展和 MCP 项在各自管理界面移除。迁移时保留的旧批处理文件不再生效。不要删除其他扩展或修改安全策略。
 
 ## 实现依据
 
 - [Chrome Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)：Windows 当前用户注册表、双视图查找、origin 与 parent-window 参数、二进制 stdio。
-- [Chromium Windows 主机启动源码](https://chromium.googlesource.com/chromium/src/+/50cc9e6c48e086e783d02f8d24a573686782d22d/chrome/browser/extensions/api/messaging/native_process_launcher_win.cc)：非 exe 主机经 cmd.exe 启动。本预览使用 .cmd，尚未提供签名 exe。
+- [Chromium Windows 主机启动源码](https://github.com/chromium/chromium/blob/main/chrome/browser/extensions/api/messaging/launch_context_win.cc)：可执行主机可能直接启动，也可能经 cmd；本分支使用本机编译的未签名 exe。
 - [Node net IPC](https://github.com/nodejs/node/blob/main/doc/api/net.md)：Windows 命名管道与 Unix socket 的生命周期差异。

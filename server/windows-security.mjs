@@ -53,7 +53,9 @@ foreach ($owner in @($sid.Value,'S-1-5-18')) {
   $rule=[Security.AccessControl.FileSystemAccessRule]::new($identity,'FullControl','ContainerInherit,ObjectInherit','None','Allow');
   $acl.AddAccessRule($rule);
 };
-Set-Acl -LiteralPath $data.directory -AclObject $acl;
+# Persist only the owner and access rules changed above. PowerShell Set-Acl
+# can also request audit privileges when reapplying an already private ACL.
+[IO.Directory]::SetAccessControl($data.directory,$acl);
 if (!(Test-Private $data.directory $true)) { throw 'unsafe ACL' };
 @{secured=$true} | ConvertTo-Json -Compress;`, { directory }, execute);
 }
@@ -67,7 +69,7 @@ foreach ($owner in @($sid.Value,'S-1-5-18')) {
   $identity=[Security.Principal.SecurityIdentifier]::new($owner);
   $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($identity,'FullControl','Allow'));
 };
-Set-Acl -LiteralPath $data.filename -AclObject $acl;
+[IO.File]::SetAccessControl($data.filename,$acl);
 if (!(Test-Private $data.filename $false)) { throw 'unsafe ACL' };
 @{secured=$true} | ConvertTo-Json -Compress;`, { filename });
 }
