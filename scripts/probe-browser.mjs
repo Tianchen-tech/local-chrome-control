@@ -72,7 +72,9 @@ async function send(method, params = {}, sessionId) {
 }
 try {
   let port;
-  for (let i = 0; i < 100; i++) {
+  // A fresh CI Chrome profile can take more than ten seconds to initialize.
+  // This budget applies only before a browser connection or page input exists.
+  for (let i = 0; i < 300; i++) {
     try { port = (await fs.readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n'); break; } catch {}
     if (!childAlive() && process.platform !== 'win32') throw new Error('Headless Chrome exited');
     await pause(100);
@@ -102,9 +104,27 @@ try {
     const evaluate = adapter.evaluate.bind(adapter);
     adapter.evaluate = (id, fn, args, deadline, awaitPromise) => evaluate(id, fn, args[3] === 'measure-point' ? [...args.slice(0, 3), 'point', ...args.slice(4)] : args, deadline, awaitPromise);
   }
-  await adapter.attach(7);
   await send('Target.activateTarget', { targetId });
   await send('Page.bringToFront', {}, rootSession);
+  // Reinitialize only this disposable target's debugger setup. An observed cold
+  // Target.setAutoAttach reply took 3158 ms, exceeding the product's 3 s bound.
+  // Do not increase that product bound or retry any page action. Preserve each
+  // setup rejection in the result record so cold-start failures stay visible.
+  const setupUntil = Date.now() + 30000;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await adapter.attach(7);
+      results.push({ case: 'disposable debugger setup', attempts: attempt, passed: true });
+      break;
+    } catch (error) {
+      results.push({ case: 'disposable debugger setup rejected before input', attempt, code: error.code, message: error.message });
+      if (error.code !== 'TIMEOUT' || Date.now() >= setupUntil) throw error;
+      // Drain the outstanding cold-start command with a read before another
+      // idempotent debugger initialization; there has been no page mutation.
+      await send('Page.getFrameTree', {}, rootSession);
+      await pause(100);
+    }
+  }
   const metadata = await ready(() => adapter.tab(7), tab => tab.title?.startsWith('Local Chrome Control ') && tab.url === origin + '/?mode=extended', 'initial document'); results.push({ case: 'metadata after activeTab', title: metadata.title || '', url: metadata.url });
   assert.ok(metadata.title.startsWith('Local Chrome Control '));
   let shot = await ready(() => adapter.run('page_snapshot', { tab_id: 7 }, origin, Date.now() + 8000, async () => {}, {}, policy),
